@@ -15,7 +15,6 @@
 - **智能合并** - 自动格式化为 SD 权重语法：`(artist:1.2)`
 
 ### 界面特点
-- 类 rgthree Power LoRA 风格设计
 - 可视化开关和权重滑块
 - 右键快捷菜单
 - 支持画师名称区域内悬停预览
@@ -27,8 +26,6 @@
 cd ComfyUI/custom_nodes
 git clone https://github.com/yourusername/ComfyUI-Power-Artist-Loader.git
 cd ComfyUI-Power-Artist-Loader
-pip install -r requirements.txt  # 如果有依赖
-```
 
 ### 方法 2: ComfyUI Manager
 1. 打开 ComfyUI Manager
@@ -94,7 +91,7 @@ Your Artist,custom keywords here,custom.jpg
 3. 推荐尺寸：200-400px 宽度，JPG/PNG 格式
 
 ### 动态重载
-修改 CSV 后刷新浏览器页面（F5），无需重启 ComfyUI。
+修改 CSV 后刷新浏览器页面（F5），无需重启 ComfyUI，暂不支持内置R快捷键更新。
 
 ## 高级功能
 
@@ -104,7 +101,7 @@ Your Artist,custom keywords here,custom.jpg
 GET /power_artist_loader/artists
 
 # 获取预览图
-GET /power_artist_loader/preview/{image_name}
+GET /power_artist_loader/images/{image_name}
 ```
 
 ### 节点输入
@@ -121,7 +118,7 @@ GET /power_artist_loader/preview/{image_name}
 
 ### 节点输出
 ```python
-return ("combined_prompt_text",)
+return ("keywords",)
 ```
 
 ## 文件结构
@@ -168,17 +165,15 @@ ComfyUI-Power-Artist-Loader/
 
 ## 已知限制
 
-- 单节点最多建议 20 个画师槽位（性能考虑）
+- 单节点最多建议 20 个画师槽位（性能考虑）或组合
 - 预览图需手动准备，不自动下载
 - 权重范围 0.00-3.00（可修改代码调整）
-- 不支持画师名称中的特殊字符（如 `:` `(` `)`）
 
 ## 开发计划
 
-- [ ] 画师搜索/过滤功能
+- [ ] 内置R热更新CSV读取
 - [ ] 分类折叠显示
 - [ ] 预设组合保存/加载
-- [ ] 自动从 Civitai 获取画师信息
 - [ ] 拖拽排序
 - [ ] 导出为独立提示词文件
 - [ ] 多语言界面
@@ -200,7 +195,7 @@ ComfyUI-Power-Artist-Loader/
 
 ### 添加画师
 1. 编辑 `artists.csv`
-2. 按分类排序
+2. 按分类排序，标题名;keywords;xxx.jpg，注意xxx要和images文件夹下的同名
 3. 提供准确的关键词
 4. 如有预览图一并提交
 
@@ -209,7 +204,6 @@ ComfyUI-Power-Artist-Loader/
 - **后端**: Python 3.8+, aiohttp
 - **前端**: JavaScript (ES6+), LiteGraph
 - **UI**: 自定义 Canvas 渲染
-- **风格**: 参考 rgthree-comfy 设计
 
 ## 许可证
 
