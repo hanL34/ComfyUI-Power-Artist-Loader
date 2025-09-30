@@ -18,7 +18,8 @@
 - 可视化开关和权重滑块
 - 右键快捷菜单
 - 支持画师名称区域内悬停预览
-<img width="2853" height="1511" alt="Power Artist loader" src="https://github.com/user-attachments/assets/fb22c561-0e94-4125-9127-cee62329083e" />
+<img width="2853" height="1511" alt="Power Artist loader" src="https://github.com/user-attachments/assets/5becbe46-c803-4271-8c4e-4f4cd86b41cf" />
+
 
 ## 安装
 
