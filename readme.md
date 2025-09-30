@@ -19,6 +19,7 @@
 - 右键快捷菜单
 - 支持画师名称区域内悬停预览
 <img width="2853" height="1511" alt="Power Artist loader" src="https://github.com/user-attachments/assets/5becbe46-c803-4271-8c4e-4f4cd86b41cf" />
+![9-30-2025 (22-39-43)](https://github.com/user-attachments/assets/642ef422-f1c7-4f5d-b01b-6960a88e3b14)
 
 
 ## 安装
