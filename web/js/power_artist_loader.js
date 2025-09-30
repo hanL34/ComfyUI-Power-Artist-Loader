@@ -1,221 +1,253 @@
-// web/js/power_artist_loader.js - 支持CSV数据和预览功能
+// web/js/power_artist_loader.js - 添加下拉菜单悬停预览功能
 import { app } from "/scripts/app.js";
+import { api } from "/scripts/api.js";
 
-let ARTISTS_DATA = []; // 存储从CSV加载的画师数据
-let ARTISTS_LIST = ["None"]; // 画师名称列表
+let ARTISTS_DATA = []; 
+let ARTISTS_LIST = ["None"];
 
-// 加载CSV数据
+// 通过API加载CSV数据
 async function loadArtistsFromCSV() {
     try {
-        const response = await fetch('/extensions/PowerArtistLoader/artists.csv');
+        const response = await api.fetchApi("/power_artist_loader/artists");
         if (!response.ok) {
-            console.warn('Could not load artists.csv, using default artists');
+            console.warn('Could not load artists data via API, using defaults');
             return loadDefaultArtists();
         }
         
-        const csvText = await response.text();
-        const lines = csvText.split('\n').filter(line => line.trim());
+        const data = await response.json();
+        ARTISTS_DATA = data.artists || [];
+        ARTISTS_LIST = ["None", ...ARTISTS_DATA.map(a => a.name)];
         
-        ARTISTS_DATA = [];
-        ARTISTS_LIST = ["None"];
-        
-        // 假设CSV格式: 画师名,关键词,图片文件名
-        for (let i = 0; i < lines.length; i++) {
-            const line = lines[i].trim();
-            if (!line) continue;
-            
-            const [name, keywords, image] = line.split(',').map(s => s.trim());
-            if (name && keywords) {
-                ARTISTS_DATA.push({
-                    name: name,
-                    keywords: keywords,
-                    image: image || null
-                });
-                ARTISTS_LIST.push(name);
-            }
-        }
-        
-        console.log(`🎨 Loaded ${ARTISTS_DATA.length} artists from CSV`);
+        console.log(`Loaded ${ARTISTS_DATA.length} artists from API`);
     } catch (error) {
-        console.error('Error loading CSV:', error);
+        console.error('Error loading artists:', error);
         loadDefaultArtists();
     }
 }
 
-// 加载默认画师列表
+// 添加刷新函数
+async function refreshArtists() {
+    await loadArtistsFromCSV();
+    console.log('Artists data refreshed');
+}
+
+// 监听页面可见性变化，自动刷新
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        refreshArtists();
+    }
+});
+
 function loadDefaultArtists() {
     ARTISTS_DATA = [
-        { name: "Akira Toriyama", keywords: "akira toriyama, dragon ball style, anime", image: null },
-        { name: "Hayao Miyazaki", keywords: "hayao miyazaki, studio ghibli, miyazaki", image: null },
-        { name: "Greg Rutkowski", keywords: "greg rutkowski, artstation", image: null }
+        { name: "Akira Toriyama", keywords: "akira toriyama style, anime, dragon ball", image: "toriyama.jpg" },
+        { name: "Greg Rutkowski", keywords: "greg rutkowski, artstation, fantasy art", image: "rutkowski.jpg" },
+        { name: "Hayao Miyazaki", keywords: "hayao miyazaki, studio ghibli, anime film", image: "miyazaki.jpg" }
     ];
     ARTISTS_LIST = ["None", ...ARTISTS_DATA.map(a => a.name)];
 }
 
-// 获取画师数据
 function getArtistData(name) {
     return ARTISTS_DATA.find(artist => artist.name === name);
 }
 
-// rgthree风格的基础widget类
+// 预览系统 - 优化版
+class PreviewImage {
+    static instance = null;
+    static currentArtist = null;
+    static hideTimer = null;
+    static isImageLoading = false;
+    
+    static show(artistName, x, y) {
+        // 清除待隐藏的定时器
+        if (this.hideTimer) {
+            clearTimeout(this.hideTimer);
+            this.hideTimer = null;
+        }
+        
+        // 避免重复显示同一个画师
+        if (this.currentArtist === artistName && this.instance) {
+            return;
+        }
+        
+        this.hide();
+        this.currentArtist = artistName;
+        this.isImageLoading = false;
+        
+        const artistData = getArtistData(artistName);
+        if (!artistData) {
+            return;
+        }
+        
+        // 如果没有图片配置，直接显示文本
+        if (!artistData.image) {
+            this.showTextOnly(artistName, artistData, x, y);
+            return;
+        }
+        
+        // 有图片配置，先尝试加载图片
+        this.isImageLoading = true;
+        
+        this.instance = document.createElement('div');
+        this.instance.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            z-index: 99999;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #4CAF50;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+            pointer-events: none;
+            max-width: 300px;
+        `;
+        
+        const img = document.createElement('img');
+        const imgSrc = `/power_artist_loader/preview/${artistData.image}`;
+        
+        img.style.cssText = `
+            max-width: 260px;
+            max-height: 200px;
+            display: block;
+            border-radius: 4px;
+            margin-bottom: 8px;
+        `;
+        
+        const info = document.createElement('div');
+        info.style.cssText = 'color: #fff; font-size: 11px; line-height: 1.4;';
+        info.innerHTML = `
+            <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
+            <div style="color: #ccc;">${artistData.keywords}</div>
+        `;
+        
+        // 保存当前实例引用
+        const currentInstance = this.instance;
+        
+        img.onload = () => {
+            this.isImageLoading = false;
+        };
+        
+        img.onerror = () => {
+            this.isImageLoading = false;
+            // 图片加载失败，显示文本版本
+            if (currentInstance && currentInstance.parentNode && this.instance === currentInstance) {
+                currentInstance.innerHTML = `
+                    <div style="color: #fff; font-size: 11px; padding: 8px;">
+                        <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
+                        <div style="color: #ccc;">${artistData.keywords}</div>
+                        <div style="color: #888; margin-top: 6px; font-size: 10px;">📷 Preview not available</div>
+                    </div>
+                `;
+            }
+        };
+        
+        img.src = imgSrc;
+        
+        this.instance.appendChild(img);
+        this.instance.appendChild(info);
+        document.body.appendChild(this.instance);
+    }
+    
+    static showTextOnly(artistName, artistData, x, y) {
+        if (!artistData) return;
+        
+        this.instance = document.createElement('div');
+        this.instance.style.cssText = `
+            position: fixed;
+            left: ${x}px;
+            top: ${y}px;
+            z-index: 99999;
+            background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+            border: 2px solid #666;
+            border-radius: 8px;
+            padding: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.9);
+            pointer-events: none;
+            max-width: 300px;
+        `;
+        
+        this.instance.innerHTML = `
+            <div style="color: #fff; font-size: 11px; line-height: 1.4;">
+                <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
+                <div style="color: #ccc;">${artistData.keywords}</div>
+            </div>
+        `;
+        
+        document.body.appendChild(this.instance);
+    }
+    
+    static scheduleHide() {
+        // 如果正在加载图片，等待加载完成后再隐藏
+        const delay = this.isImageLoading ? 200 : 100;
+        
+        this.hideTimer = setTimeout(() => {
+            this.hide();
+        }, delay);
+    }
+    
+    static hide() {
+        if (this.hideTimer) {
+            clearTimeout(this.hideTimer);
+            this.hideTimer = null;
+        }
+        
+        if (this.instance) {
+            this.instance.remove();
+            this.instance = null;
+        }
+        this.currentArtist = null;
+        this.isImageLoading = false;
+    }
+}
+
+// rgthree风格基础widget
 class RgthreeBaseWidget {
     constructor(name) {
         this.name = name;
         this.type = "rgthree_base";
-        this.hitAreas = {};
         this.last_y = 0;
     }
-}
-
-// 预览图片显示
-class ArtistPreview {
-    static instance = null;
-    static timeout = null;
     
-    static show(artistName, x, y) {
-        this.hide(); // 先隐藏之前的预览
-        
-        const artistData = getArtistData(artistName);
-        if (!artistData || !artistData.image) return;
-        
-        this.timeout = setTimeout(() => {
-            this.instance = document.createElement('div');
-            this.instance.style.cssText = `
-                position: fixed;
-                left: ${x + 10}px;
-                top: ${y - 10}px;
-                z-index: 10000;
-                background: #333;
-                border: 2px solid #666;
-                border-radius: 4px;
-                padding: 8px;
-                box-shadow: 0 4px 8px rgba(0,0,0,0.5);
-                max-width: 300px;
-                pointer-events: none;
-            `;
-            
-            // 添加图片
-            const img = document.createElement('img');
-            img.src = `/extensions/PowerArtistLoader/images/${artistData.image}`;
-            img.style.cssText = `
-                max-width: 200px;
-                max-height: 200px;
-                display: block;
-                margin-bottom: 5px;
-                border-radius: 2px;
-            `;
-            
-            img.onerror = () => {
-                // 如果图片加载失败，显示文本信息
-                this.instance.innerHTML = `
-                    <div style="color: #fff; font-size: 12px;">
-                        <strong>${artistData.name}</strong><br>
-                        <em>${artistData.keywords}</em>
-                    </div>
-                `;
-            };
-            
-            // 添加文字信息
-            const info = document.createElement('div');
-            info.style.cssText = 'color: #fff; font-size: 12px;';
-            info.innerHTML = `
-                <strong>${artistData.name}</strong><br>
-                <em style="color: #ccc;">${artistData.keywords}</em>
-            `;
-            
-            this.instance.appendChild(img);
-            this.instance.appendChild(info);
-            document.body.appendChild(this.instance);
-        }, 500); // 延迟500ms显示
-    }
-    
-    static hide() {
-        if (this.timeout) {
-            clearTimeout(this.timeout);
-            this.timeout = null;
-        }
-        
-        if (this.instance) {
-            document.body.removeChild(this.instance);
-            this.instance = null;
-        }
+    computeSize() {
+        return [0, 25];
     }
 }
 
-// Power Artist Loader Widget
-class PowerArtistLoaderWidget extends RgthreeBaseWidget {
-    constructor(name) {
+// Toggle All Header Widget
+class PowerArtistHeaderWidget extends RgthreeBaseWidget {
+    constructor(name = "PowerArtistHeaderWidget") {
         super(name);
-        this.type = "power_artist";
-        this.serialize = true;
-        this.haveMouseMovedStrength = false;
-        
-        this.hitAreas = {
-            toggle: { bounds: [0, 0], onDown: this.onToggleDown.bind(this) },
-            artist: { bounds: [0, 0], onClick: this.onArtistClick.bind(this), onHover: this.onArtistHover.bind(this) },
-            strengthDec: { bounds: [0, 0], onClick: this.onStrengthDecDown.bind(this) },
-            strengthVal: { bounds: [0, 0], onClick: this.onStrengthValUp.bind(this) },
-            strengthInc: { bounds: [0, 0], onClick: this.onStrengthIncDown.bind(this) },
-            strengthAny: { bounds: [0, 0], onMove: this.onStrengthAnyMove.bind(this) }
-        };
-        
-        this._value = {
-            on: true,
-            artist: "None",
-            strength: 1.0
-        };
-    }
-    
-    set value(v) {
-        this._value = v && typeof v === 'object' ? v : { on: true, artist: "None", strength: 1.0 };
-    }
-    
-    get value() {
-        return this._value;
+        this.value = { type: "PowerArtistHeaderWidget" };
+        this.type = "power_artist_header";
+        this.serialize = false;
     }
     
     draw(ctx, node, width, posY, height) {
+        if (!node.hasArtistWidgets || !node.hasArtistWidgets()) return 0;
+        
         const margin = 10;
-        const innerMargin = margin * 0.33;
+        const innerMargin = 4;
         const midY = posY + height * 0.5;
         
         ctx.save();
         
-        // 绘制背景框
-        this.drawRoundedRectangle(ctx, margin, posY, width - margin * 2, height);
+        const allState = node.allArtistsState ? node.allArtistsState() : null;
         
         let posX = margin;
         
-        // 绘制开关
-        this.hitAreas.toggle.bounds = this.drawTogglePart(ctx, posX, posY, height, this.value.on);
-        posX += this.hitAreas.toggle.bounds[1] + innerMargin;
+        const toggleBounds = this.drawTogglePart(ctx, posX, posY, height, allState);
+        posX += toggleBounds[1] + innerMargin;
         
-        if (!this.value.on) {
-            ctx.globalAlpha = 0.4;
-        }
-        
-        // 绘制画师名称
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "12px Arial";
         ctx.textAlign = "left";
         ctx.textBaseline = "middle";
+        ctx.globalAlpha = 0.7;
+        ctx.fillText("Toggle All", posX, midY);
         
-        const artistName = this.value.artist || "None";
-        const nameWidth = 140;
-        let displayName = this.fitString(ctx, artistName, nameWidth);
-        ctx.fillText(displayName, posX, midY);
-        
-        this.hitAreas.artist.bounds = [posX, posY, nameWidth, height];
-        posX += nameWidth + innerMargin;
-        
-        // 绘制权重控制
-        const strengthValue = this.value.strength || 1.0;
-        const numberParts = this.drawNumberWidgetPart(ctx, width - margin - innerMargin, posY, height, strengthValue, -1);
-        
-        this.hitAreas.strengthDec.bounds = [...numberParts[0], posY, height];
-        this.hitAreas.strengthVal.bounds = [...numberParts[1], posY, height];
-        this.hitAreas.strengthInc.bounds = [...numberParts[2], posY, height];
-        this.hitAreas.strengthAny.bounds = [numberParts[0][0], posY, numberParts[2][0] + numberParts[2][1] - numberParts[0][0], height];
+        ctx.textAlign = "center";
+        ctx.fillText("Strength", width - margin - 35, midY);
         
         this.last_y = posY;
         
@@ -224,10 +256,125 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
         return height;
     }
     
-    // 绘制圆角矩形背景
+    drawTogglePart(ctx, posX, posY, height, value) {
+        const size = height * 0.6;
+        const x = posX + 5;
+        const y = posY + (height - size) / 2;
+        
+        ctx.beginPath();
+        ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
+        
+        if (value === null) {
+            ctx.fillStyle = "#FF9800";
+        } else {
+            ctx.fillStyle = value ? "#4CAF50" : "#444444";
+        }
+        
+        ctx.fill();
+        ctx.strokeStyle = value === null ? "#FFB74D" : (value ? "#66BB6A" : "#666666");
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        
+        if (value === true) {
+            ctx.beginPath();
+            ctx.arc(x + size/2, y + size/2, size/2 - 3, 0, Math.PI * 2);
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fill();
+        } else if (value === null) {
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "10px Arial";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText("-", x + size/2, y + size/2);
+        }
+        
+        return [x, size + 10];
+    }
+    
+    mouse(event, pos, node) {
+        const localY = pos[1] - this.last_y;
+        const localX = pos[0];
+        
+        if (localY < 0 || localY > 25) return false;
+        
+        if (event.type === "pointerdown" && localX >= 10 && localX <= 30) {
+            if (node.toggleAllArtists) {
+                node.toggleAllArtists();
+            }
+            return true;
+        }
+        
+        return false;
+    }
+}
+
+// 主要的Artist Widget
+class PowerArtistWidget extends RgthreeBaseWidget {
+    constructor(name) {
+        super(name);
+        this.type = "power_artist";
+        this.serialize = true;
+        this.isMouseOver = false;
+        this.dragStrength = false;
+        
+        this._value = {
+            on: false,
+            artist: "None", 
+            strength: 1.00
+        };
+    }
+    
+    set value(v) {
+        this._value = v && typeof v === 'object' ? v : { on: false, artist: "None", strength: 1.00 };
+    }
+    
+    get value() {
+        return this._value;
+    }
+    
+    draw(ctx, node, width, posY, height) {
+        const margin = 10;
+        const innerMargin = 3;
+        const midY = posY + height * 0.5;
+        
+        ctx.save();
+        
+        this.drawRoundedRectangle(ctx, margin, posY, width - margin * 2, height);
+        
+        let posX = margin;
+        
+        const toggleBounds = this.drawTogglePart(ctx, posX, posY, height, this.value.on);
+        posX += toggleBounds[1] + innerMargin;
+        
+        if (!this.value.on) {
+            ctx.globalAlpha = 0.4;
+        }
+        
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "left";
+        ctx.textBaseline = "middle";
+        
+        const artistName = this.value.artist || "None";
+        const nameWidth = 150;
+        const displayName = this.fitString(ctx, artistName, nameWidth);
+        ctx.fillText(displayName, posX, midY);
+        
+        posX += nameWidth + innerMargin;
+        
+        const strengthValue = this.value.strength || 1.00;
+        this.drawStrengthWidget(ctx, width - margin - 70, posY, 70, height, strengthValue);
+        
+        this.last_y = posY;
+        
+        ctx.restore();
+        
+        return height;
+    }
+    
     drawRoundedRectangle(ctx, x, y, width, height) {
-        const radius = 4;
-        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        const radius = 3;
+        ctx.fillStyle = "rgba(0,0,0,0.15)";
         ctx.beginPath();
         ctx.moveTo(x + radius, y);
         ctx.arcTo(x + width, y, x + width, y + height, radius);
@@ -238,13 +385,11 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
         ctx.fill();
     }
     
-    // 绘制开关部分
     drawTogglePart(ctx, posX, posY, height, value) {
-        const size = height * 0.6;
-        const x = posX + 5;
+        const size = height * 0.55;
+        const x = posX + 6;
         const y = posY + (height - size) / 2;
         
-        // 外圆
         ctx.beginPath();
         ctx.arc(x + size/2, y + size/2, size/2, 0, Math.PI * 2);
         ctx.fillStyle = value ? "#4CAF50" : "#444444";
@@ -253,66 +398,63 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
         ctx.lineWidth = 1;
         ctx.stroke();
         
-        // 内部标记
         if (value) {
             ctx.beginPath();
-            ctx.arc(x + size/2, y + size/2, size/2 - 3, 0, Math.PI * 2);
+            ctx.arc(x + size/2, y + size/2, size/2 - 2.5, 0, Math.PI * 2);
             ctx.fillStyle = "#FFFFFF";
             ctx.fill();
         }
         
-        return [x, size + 10]; // [起始位置, 宽度]
+        return [x, size + 8];
     }
     
-    // 绘制数字控件部分
-    drawNumberWidgetPart(ctx, posX, posY, height, value, direction = -1) {
-        const totalWidth = 70;
+    drawStrengthWidget(ctx, x, y, width, height, value) {
         const arrowWidth = 15;
-        const valueWidth = totalWidth - arrowWidth * 2;
-        
-        const startX = direction === -1 ? posX - totalWidth : posX;
-        const y = posY + 2;
+        const valueWidth = width - arrowWidth * 2;
+        const yOffset = 2;
         const h = height - 4;
         
-        // 左箭头
-        ctx.fillStyle = "#666666";
-        ctx.fillRect(startX, y, arrowWidth, h);
+        ctx.fillStyle = "#555555";
+        ctx.fillRect(x, y + yOffset, arrowWidth, h);
+        ctx.strokeStyle = "#777777";
+        ctx.strokeRect(x, y + yOffset, arrowWidth, h);
+        
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "10px Arial";
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("<", startX + arrowWidth/2, posY + height/2);
+        ctx.fillText("◀", x + arrowWidth/2, y + height/2);
         
-        // 数值区域
-        const valueX = startX + arrowWidth;
-        ctx.fillStyle = "#444444";
-        ctx.fillRect(valueX, y, valueWidth, h);
+        const valueX = x + arrowWidth;
+        ctx.fillStyle = "#333333";
+        ctx.fillRect(valueX, y + yOffset, valueWidth, h);
+        ctx.strokeStyle = "#777777";
+        ctx.strokeRect(valueX, y + yOffset, valueWidth, h);
         
-        // 数值文字
         ctx.fillStyle = value !== 1.0 ? "#FFC107" : "#CCCCCC";
-        ctx.font = "11px Arial";
-        ctx.fillText(value.toFixed(1), valueX + valueWidth/2, posY + height/2);
-        
-        // 右箭头
-        const rightX = valueX + valueWidth;
-        ctx.fillStyle = "#666666";
-        ctx.fillRect(rightX, y, arrowWidth, h);
-        ctx.fillStyle = "#FFFFFF";
         ctx.font = "10px Arial";
-        ctx.fillText(">", rightX + arrowWidth/2, posY + height/2);
+        const valueText = value.toFixed(2);
+        ctx.fillText(valueText, valueX + valueWidth/2, y + height/2);
         
-        return [
-            [startX, arrowWidth],           // 左箭头
-            [valueX, valueWidth],           // 数值区域
-            [rightX, arrowWidth]            // 右箭头
-        ];
+        const rightX = valueX + valueWidth;
+        ctx.fillStyle = "#555555";
+        ctx.fillRect(rightX, y + yOffset, arrowWidth, h);
+        ctx.strokeStyle = "#777777";
+        ctx.strokeRect(rightX, y + yOffset, arrowWidth, h);
+        
+        ctx.fillStyle = "#FFFFFF";
+        ctx.fillText("▶", rightX + arrowWidth/2, y + height/2);
+        
+        this.strengthAreas = {
+            decrease: { x: x, width: arrowWidth },
+            value: { x: valueX, width: valueWidth },
+            increase: { x: rightX, width: arrowWidth },
+            total: { x: x, width: width }
+        };
     }
     
-    // 文字适应宽度
     fitString(ctx, text, maxWidth) {
-        if (ctx.measureText(text).width <= maxWidth) {
-            return text;
-        }
+        if (ctx.measureText(text).width <= maxWidth) return text;
         
         while (text.length > 3 && ctx.measureText(text + "...").width > maxWidth) {
             text = text.substring(0, text.length - 1);
@@ -320,66 +462,132 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
         return text + "...";
     }
     
-    // 鼠标事件处理
     mouse(event, pos, node) {
         const localY = pos[1] - this.last_y;
         const localX = pos[0];
         
         if (localY < 0 || localY > 25) {
-            ArtistPreview.hide(); // 鼠标离开时隐藏预览
+            if (this.isMouseOver) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+            }
             return false;
         }
         
-        // 检查各个点击区域
-        for (const [areaName, area] of Object.entries(this.hitAreas)) {
-            const bounds = area.bounds;
-            if (bounds.length === 4) { // [x, y, width, height]
-                const [x, y, width, height] = bounds;
-                if (localX >= x && localX <= x + width && localY >= y - this.last_y && localY <= y - this.last_y + height) {
-                    if (event.type === "pointermove" && area.onHover) {
-                        area.onHover(event, pos, node);
-                    } else if (event.type === "pointerdown" && area.onDown) {
-                        ArtistPreview.hide();
-                        return area.onDown(event, pos, node);
-                    } else if (event.type === "pointerdown" && area.onClick) {
-                        ArtistPreview.hide();
-                        return area.onClick(event, pos, node);
-                    } else if (event.type === "pointermove" && area.onMove) {
-                        return area.onMove(event, pos, node);
-                    }
-                }
-            } else if (bounds.length === 2) { // [x, width] - 老格式兼容
-                const [x, width] = bounds;
-                if (localX >= x && localX <= x + width) {
-                    if (event.type === "pointerdown" && area.onDown) {
-                        ArtistPreview.hide();
-                        return area.onDown(event, pos, node);
-                    } else if (event.type === "pointerdown" && area.onClick) {
-                        ArtistPreview.hide();
-                        return area.onClick(event, pos, node);
-                    }
-                }
+        // 右键菜单 - 在整个widget区域检测，并标记已处理
+        if (event.type === "pointerdown" && event.button === 2) {
+            PreviewImage.hide();
+            this.isMouseOver = false;
+            
+            // 阻止节点的右键菜单
+            event.stopPropagation();
+            event.preventDefault();
+            
+            this.showContextMenu(event, node);
+            return true;
+        }
+        
+        // 开关区域
+        if (localX >= 10 && localX <= 30) {
+            if (event.type === "pointerdown" && event.button === 0) {
+                PreviewImage.hide();
+                this.value.on = !this.value.on;
+                node.setDirtyCanvas(true, true);
+                return true;
             }
         }
         
-        // 右键菜单
-        if (event.type === "pointerdown" && event.button === 2) {
-            ArtistPreview.hide();
-            this.showContextMenu(event, node);
-            return true;
+        // 画师名称区域
+        else if (localX >= 35 && localX <= 185) {
+            if (event.type === "pointermove") {
+                const artistName = this.value.artist;
+                if (artistName && artistName !== "None") {
+                    if (!this.isMouseOver) {
+                        try {
+                            let canvasElement = null;
+                            if (app.canvas && app.canvas.canvas) {
+                                canvasElement = app.canvas.canvas;
+                            } else if (node.graph && node.graph.canvas && node.graph.canvas.canvas) {
+                                canvasElement = node.graph.canvas.canvas;
+                            } else {
+                                canvasElement = document.querySelector('canvas');
+                            }
+                            
+                            if (canvasElement) {
+                                const rect = canvasElement.getBoundingClientRect();
+                                PreviewImage.show(artistName, rect.left + pos[0], rect.top + pos[1]);
+                                this.isMouseOver = true;
+                            }
+                        } catch (error) {
+                            console.warn('Canvas not found for preview:', error);
+                        }
+                    }
+                }
+            } else if (event.type === "pointerdown" && event.button === 0) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+                this.showArtistMenu(event, node);
+                return true;
+            }
+        }
+        
+        // 权重控制区域
+        else if (this.strengthAreas && localX >= this.strengthAreas.total.x && localX <= this.strengthAreas.total.x + this.strengthAreas.total.width) {
+            if (event.type === "pointerdown" && event.button === 0) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+                
+                const widgetStartX = this.strengthAreas.total.x;
+                const relativeX = localX - widgetStartX;
+                
+                if (relativeX >= 0 && relativeX <= 15) {
+                    this.adjustStrength(-0.05);
+                    node.setDirtyCanvas(true, true);
+                    return true;
+                }
+                else if (relativeX >= 55 && relativeX <= 70) {
+                    this.adjustStrength(0.05);
+                    node.setDirtyCanvas(true, true);
+                    return true;
+                }
+                else if (relativeX > 15 && relativeX < 55) {
+                    this.showWeightInput(event, node);
+                    return true;
+                }
+            }
+            else if (event.type === "pointermove" && event.buttons === 1 && this.dragStrength) {
+                this.adjustStrength(event.movementX * 0.01);
+                node.setDirtyCanvas(true, true);
+                return true;
+            }
+            else if (event.type === "pointerdown" && event.buttons === 1) {
+                this.dragStrength = true;
+                return true;
+            }
+        }
+        
+        // 鼠标离开时隐藏预览
+        if (event.type === "pointerleave" || (event.type === "pointermove" && (localX < 35 || localX > 185))) {
+            if (this.isMouseOver) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+            }
         }
         
         return false;
     }
     
-    // 事件处理方法
-    onToggleDown(event, pos, node) {
-        this.value.on = !this.value.on;
-        node.setDirtyCanvas(true, true);
-        return true;
+    onMouseUp(event, pos, node) {
+        this.dragStrength = false;
     }
     
-    onArtistClick(event, pos, node) {
+    adjustStrength(delta) {
+        this.value.strength = (this.value.strength || 1.0) + delta;
+        this.value.strength = Math.max(0.0, Math.min(3.0, this.value.strength));
+        this.value.strength = Math.round(this.value.strength * 100) / 100;
+    }
+    
+    showArtistMenu(event, node) {
         const menu = ARTISTS_LIST.map(artist => ({
             content: artist === this.value.artist ? `● ${artist}` : artist,
             callback: () => {
@@ -388,68 +596,59 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
             }
         }));
         
-        new LiteGraph.ContextMenu(menu, {
+        const contextMenu = new LiteGraph.ContextMenu(menu, {
             event: event,
             title: "Choose Artist",
             className: "dark"
         });
         
-        return true;
+        // 核心功能：为菜单项添加悬停预览
+        setTimeout(() => {
+            if (!contextMenu.root) return;
+            
+            const menuItems = contextMenu.root.querySelectorAll('.litemenu-entry');
+            
+            menuItems.forEach((item, index) => {
+                const artistName = ARTISTS_LIST[index];
+                
+                if (!artistName || artistName === "None") return;
+                
+                item.addEventListener('mouseenter', (e) => {
+                    const rect = item.getBoundingClientRect();
+                    // 在菜单右侧显示预览
+                    PreviewImage.show(artistName, rect.right + 15, rect.top);
+                });
+                
+                item.addEventListener('mouseleave', () => {
+                    // 标记即将隐藏，但给图片加载时间
+                    PreviewImage.scheduleHide();
+                });
+            });
+            
+            // 菜单关闭时清理预览
+            const originalRemove = contextMenu.close.bind(contextMenu);
+            contextMenu.close = function() {
+                PreviewImage.hide();
+                originalRemove();
+            };
+        }, 10);
     }
     
-    onArtistHover(event, pos, node) {
-        const artistName = this.value.artist;
-        if (artistName && artistName !== "None") {
-            const canvasRect = node.graph.canvas.canvas.getBoundingClientRect();
-            ArtistPreview.show(artistName, canvasRect.left + pos[0], canvasRect.top + pos[1]);
-        }
-    }
-    
-    onStrengthDecDown(event, pos, node) {
-        this.stepStrength(-1);
-        node.setDirtyCanvas(true, true);
-        return true;
-    }
-    
-    onStrengthIncDown(event, pos, node) {
-        this.stepStrength(1);
-        node.setDirtyCanvas(true, true);
-        return true;
-    }
-    
-    onStrengthValUp(event, pos, node) {
-        if (this.haveMouseMovedStrength) return true;
-        
+    showWeightInput(event, node) {
         const canvas = app.canvas;
-        canvas.prompt("Value", this.value.strength, (v) => {
-            this.value.strength = Number(v);
-            node.setDirtyCanvas(true, true);
+        canvas.prompt("Strength Value (0.00 - 3.00)", this.value.strength.toFixed(2), (v) => {
+            const newValue = parseFloat(v);
+            if (!isNaN(newValue) && newValue >= 0.0 && newValue <= 3.0) {
+                this.value.strength = Math.round(newValue * 100) / 100;
+                node.setDirtyCanvas(true, true);
+            }
         }, event);
-        
-        return true;
-    }
-    
-    onStrengthAnyMove(event, pos, node) {
-        if (event.deltaX) {
-            this.haveMouseMovedStrength = true;
-            this.value.strength = (this.value.strength || 1.0) + event.deltaX * 0.05;
-            this.value.strength = Math.max(0.0, Math.min(2.0, this.value.strength));
-            node.setDirtyCanvas(true, true);
-        }
-        return true;
-    }
-    
-    stepStrength(direction) {
-        const step = 0.05;
-        let strength = (this.value.strength || 1.0) + step * direction;
-        this.value.strength = Math.round(strength * 100) / 100;
-        this.value.strength = Math.max(0.0, Math.min(2.0, this.value.strength));
     }
     
     showContextMenu(event, node) {
         const menu = [
             {
-                content: this.value.on ? "❌ Disable" : "✅ Enable",
+                content: this.value.on ? "⌨ Disable" : "✅ Enable",
                 callback: () => {
                     this.value.on = !this.value.on;
                     node.setDirtyCanvas(true, true);
@@ -457,24 +656,52 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
             },
             null,
             {
-                content: "⚖️ Weight 0.5",
+                content: "⚖️ Strength 0.50",
                 callback: () => {
-                    this.value.strength = 0.5;
+                    this.value.strength = 0.50;
                     node.setDirtyCanvas(true, true);
                 }
             },
             {
-                content: "⚖️ Weight 1.0",
+                content: "⚖️ Strength 1.00",
                 callback: () => {
-                    this.value.strength = 1.0;
+                    this.value.strength = 1.00;
                     node.setDirtyCanvas(true, true);
                 }
             },
             {
-                content: "⚖️ Weight 1.5",
+                content: "⚖️ Strength 1.50",
                 callback: () => {
-                    this.value.strength = 1.5;
+                    this.value.strength = 1.50;
                     node.setDirtyCanvas(true, true);
+                }
+            },
+            null,
+            {
+                content: "🔼 Move Up",
+                disabled: !node.canMoveWidgetUp || !node.canMoveWidgetUp(this),
+                callback: () => {
+                    if (node.moveWidgetUp) {
+                        node.moveWidgetUp(this);
+                    }
+                }
+            },
+            {
+                content: "🔽 Move Down",
+                disabled: !node.canMoveWidgetDown || !node.canMoveWidgetDown(this),
+                callback: () => {
+                    if (node.moveWidgetDown) {
+                        node.moveWidgetDown(this);
+                    }
+                }
+            },
+            null,
+            {
+                content: "🗑️ Remove",
+                callback: () => {
+                    if (node.removeArtistWidget) {
+                        node.removeArtistWidget(this);
+                    }
                 }
             }
         ];
@@ -486,25 +713,16 @@ class PowerArtistLoaderWidget extends RgthreeBaseWidget {
         });
     }
     
-    onMouseUp(event, pos, node) {
-        this.haveMouseMovedStrength = false;
-    }
-    
-    computeSize() {
-        return [0, 25];
-    }
-    
     serializeValue() {
         return { ...this.value };
     }
 }
 
-// 按钮widget
-class RgthreeBetterButtonWidget extends RgthreeBaseWidget {
+// 按钮和分隔widget
+class RgthreeButtonWidget extends RgthreeBaseWidget {
     constructor(name, callback) {
         super(name);
         this.callback = callback;
-        this.type = "rgthree_button";
         this.serialize = false;
     }
     
@@ -512,17 +730,11 @@ class RgthreeBetterButtonWidget extends RgthreeBaseWidget {
         const margin = 10;
         
         ctx.save();
-        
-        // 绘制按钮背景
         ctx.fillStyle = "#555555";
         ctx.fillRect(margin, posY + 2, width - margin * 2, height - 4);
-        
-        // 按钮边框
         ctx.strokeStyle = "#777777";
-        ctx.lineWidth = 1;
         ctx.strokeRect(margin, posY + 2, width - margin * 2, height - 4);
         
-        // 按钮文字
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "12px Arial";
         ctx.textAlign = "center";
@@ -530,7 +742,6 @@ class RgthreeBetterButtonWidget extends RgthreeBaseWidget {
         ctx.fillText(this.name, width / 2, posY + height / 2);
         
         this.last_y = posY;
-        
         ctx.restore();
         
         return height;
@@ -538,29 +749,22 @@ class RgthreeBetterButtonWidget extends RgthreeBaseWidget {
     
     mouse(event, pos, node) {
         const localY = pos[1] - this.last_y;
-        
         if (event.type === "pointerdown" && localY >= 0 && localY <= 25) {
             if (this.callback) {
+                // 传入 event 和 node 用于显示菜单
                 return this.callback(event, pos, node);
             }
             return true;
         }
         return false;
     }
-    
-    computeSize() {
-        return [0, 25];
-    }
 }
 
-// 分隔线widget
 class RgthreeDividerWidget extends RgthreeBaseWidget {
     constructor(options = {}) {
         super("divider");
-        this.options = options;
         this.marginTop = options.marginTop || 4;
         this.marginBottom = options.marginBottom || 0;
-        this.thickness = options.thickness || 0;
         this.serialize = false;
     }
     
@@ -570,23 +774,20 @@ class RgthreeDividerWidget extends RgthreeBaseWidget {
     }
     
     computeSize() {
-        return [0, this.marginTop + this.thickness + this.marginBottom];
+        return [0, this.marginTop + this.marginBottom];
     }
 }
 
-// 主扩展注册
+// 扩展注册
 app.registerExtension({
     name: "Comfy.PowerArtistLoader",
     
     async init(app) {
-        // 加载CSV数据
         await loadArtistsFromCSV();
     },
     
     async beforeRegisterNodeDef(nodeType, nodeData, app) {
         if (nodeData.name === "PowerArtistLoader") {
-            console.log("🎨 Registering PowerArtistLoader node (CSV powered)");
-            
             const onNodeCreated = nodeType.prototype.onNodeCreated;
             
             nodeType.prototype.onNodeCreated = function() {
@@ -595,64 +796,287 @@ app.registerExtension({
                 }
                 
                 this.serialize_widgets = true;
-                this.artistWidgetsCounter = 0;
                 this.artistWidgets = [];
-                this.widgetButtonSpacer = null;
+                this.artistCounter = 0;
                 
-                // 添加非artist widgets
+                // 确保 widgets 数组存在
+                if (!this.widgets) {
+                    this.widgets = [];
+                }
+                
+                // 移除默认的 text widget（如果存在）
+                this.widgets = this.widgets.filter(w => w.name !== "text");
+                
                 this.addNonArtistWidgets();
                 
-                // 添加第一个artist widget
-                this.addNewArtistWidget();
-                
-                this.size = [300, Math.max(120, this.computeSize()[1])];
+                this.size = [320, Math.max(120, this.computeSize()[1])];
                 this.setDirtyCanvas(true, true);
             };
             
-            // 添加新的artist widget
-            nodeType.prototype.addNewArtistWidget = function(artist) {
-                this.artistWidgetsCounter++;
-                const widget = new PowerArtistLoaderWidget("artist_" + this.artistWidgetsCounter);
+            // 添加节点级别的右键菜单
+            const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
+            nodeType.prototype.getExtraMenuOptions = function(_, options) {
+                const r = getExtraMenuOptions ? getExtraMenuOptions.apply(this, arguments) : undefined;
                 
-                if (artist) {
-                    widget.value = { on: true, artist: artist, strength: 1.0 };
+                if (this.artistWidgets && this.artistWidgets.length > 0) {
+                    options.push(null); // 分隔线
+                    
+                    // 为每个画师 widget 添加子菜单
+                    this.artistWidgets.forEach((widget, index) => {
+                        const artistName = widget.value.artist || "None";
+                        
+                        options.push({
+                            content: `🎨 ${artistName}`,
+                            has_submenu: true,
+                            submenu: {
+                                options: [
+                                    {
+                                        content: widget.value.on ? "⌨ Disable" : "✅ Enable",
+                                        callback: () => {
+                                            widget.value.on = !widget.value.on;
+                                            this.setDirtyCanvas(true, true);
+                                        }
+                                    },
+                                    null,
+                                    {
+                                        content: "⚖️ Strength 0.50",
+                                        callback: () => {
+                                            widget.value.strength = 0.50;
+                                            this.setDirtyCanvas(true, true);
+                                        }
+                                    },
+                                    {
+                                        content: "⚖️ Strength 1.00",
+                                        callback: () => {
+                                            widget.value.strength = 1.00;
+                                            this.setDirtyCanvas(true, true);
+                                        }
+                                    },
+                                    {
+                                        content: "⚖️ Strength 1.50",
+                                        callback: () => {
+                                            widget.value.strength = 1.50;
+                                            this.setDirtyCanvas(true, true);
+                                        }
+                                    },
+                                    null,
+                                    {
+                                        content: "🔼 Move Up",
+                                        disabled: !this.canMoveWidgetUp(widget),
+                                        callback: () => {
+                                            this.moveWidgetUp(widget);
+                                        }
+                                    },
+                                    {
+                                        content: "🔽 Move Down",
+                                        disabled: !this.canMoveWidgetDown(widget),
+                                        callback: () => {
+                                            this.moveWidgetDown(widget);
+                                        }
+                                    },
+                                    null,
+                                    {
+                                        content: "🗑️ Remove",
+                                        callback: () => {
+                                            this.removeArtistWidget(widget);
+                                        }
+                                    }
+                                ]
+                            }
+                        });
+                    });
                 }
                 
-                // 在按钮之前插入
-                if (this.widgetButtonSpacer) {
-                    const spacerIndex = this.widgets.indexOf(this.widgetButtonSpacer);
-                    this.widgets.splice(spacerIndex, 0, widget);
+                return r;
+            };
+            
+            nodeType.prototype.hasArtistWidgets = function() {
+                return this.artistWidgets && this.artistWidgets.length > 0;
+            };
+            
+            nodeType.prototype.allArtistsState = function() {
+                if (!this.artistWidgets || this.artistWidgets.length === 0) return false;
+                
+                let allOn = true;
+                let allOff = true;
+                
+                for (const widget of this.artistWidgets) {
+                    const on = widget.value && widget.value.on;
+                    allOn = allOn && on === true;
+                    allOff = allOff && on === false;
+                    
+                    if (!allOn && !allOff) return null;
+                }
+                
+                return allOn ? true : false;
+            };
+            
+            nodeType.prototype.toggleAllArtists = function() {
+                const allOn = this.allArtistsState();
+                const newState = allOn !== true;
+                
+                for (const widget of this.artistWidgets) {
+                    if (widget.value) {
+                        widget.value.on = newState;
+                    }
+                }
+                
+                this.setDirtyCanvas(true, true);
+            };
+            
+            nodeType.prototype.addNewArtistWidget = function() {
+                this.artistCounter++;
+                const widget = new PowerArtistWidget(`artist_${this.artistCounter}`);
+                
+                const buttonIndex = this.widgets.findIndex(w => w.name === "➕ Add Artist");
+                if (buttonIndex !== -1) {
+                    this.widgets.splice(buttonIndex, 0, widget);
                 } else {
                     this.widgets.push(widget);
                 }
                 
                 this.artistWidgets.push(widget);
                 
-                // 重新计算大小
-                this.size = [300, Math.max(120, this.computeSize()[1])];
+                // 保留用户调整的宽度，只更新高度
+                const minHeight = Math.max(120, this.computeSize()[1]);
+                this.size[0] = Math.max(this.size[0], 320); // 保持用户宽度，最小320
+                this.size[1] = Math.max(this.size[1], minHeight); // 保持用户高度，最小为计算高度
+                
                 this.setDirtyCanvas(true, true);
                 
                 return widget;
             };
             
-            // 添加非artist widgets
-            nodeType.prototype.addNonArtistWidgets = function() {
-                // 间隔
-                this.widgetButtonSpacer = new RgthreeDividerWidget({ marginTop: 4, marginBottom: 0, thickness: 0 });
-                this.widgets.push(this.widgetButtonSpacer);
-                
-                // 添加按钮
-                const addButton = new RgthreeBetterButtonWidget("➕ Add Artist", (event, pos, node) => {
-                    this.addNewArtistWidget();
-                    return true;
-                });
-                
-                this.widgets.push(addButton);
+            nodeType.prototype.canMoveWidgetUp = function(widget) {
+                const index = this.artistWidgets.indexOf(widget);
+                return index > 0;
             };
             
-            console.log("🎨 PowerArtistLoader extension registered successfully (CSV powered)");
+            nodeType.prototype.canMoveWidgetDown = function(widget) {
+                const index = this.artistWidgets.indexOf(widget);
+                return index >= 0 && index < this.artistWidgets.length - 1;
+            };
+            
+            nodeType.prototype.moveWidgetUp = function(widget) {
+                const index = this.artistWidgets.indexOf(widget);
+                if (index <= 0) return;
+                
+                // 交换 artistWidgets 数组
+                [this.artistWidgets[index - 1], this.artistWidgets[index]] = 
+                [this.artistWidgets[index], this.artistWidgets[index - 1]];
+                
+                // 在 widgets 数组中找到位置并交换
+                const widgetIndex = this.widgets.indexOf(widget);
+                if (widgetIndex > 0) {
+                    [this.widgets[widgetIndex - 1], this.widgets[widgetIndex]] = 
+                    [this.widgets[widgetIndex], this.widgets[widgetIndex - 1]];
+                }
+                
+                this.setDirtyCanvas(true, true);
+            };
+            
+            nodeType.prototype.moveWidgetDown = function(widget) {
+                const index = this.artistWidgets.indexOf(widget);
+                if (index < 0 || index >= this.artistWidgets.length - 1) return;
+                
+                // 交换 artistWidgets 数组
+                [this.artistWidgets[index], this.artistWidgets[index + 1]] = 
+                [this.artistWidgets[index + 1], this.artistWidgets[index]];
+                
+                // 在 widgets 数组中找到位置并交换
+                const widgetIndex = this.widgets.indexOf(widget);
+                if (widgetIndex < this.widgets.length - 1) {
+                    [this.widgets[widgetIndex], this.widgets[widgetIndex + 1]] = 
+                    [this.widgets[widgetIndex + 1], this.widgets[widgetIndex]];
+                }
+                
+                this.setDirtyCanvas(true, true);
+            };
+            
+            nodeType.prototype.removeArtistWidget = function(widget) {
+                // 从 artistWidgets 中移除
+                const index = this.artistWidgets.indexOf(widget);
+                if (index >= 0) {
+                    this.artistWidgets.splice(index, 1);
+                }
+                
+                // 从 widgets 中移除
+                const widgetIndex = this.widgets.indexOf(widget);
+                if (widgetIndex >= 0) {
+                    this.widgets.splice(widgetIndex, 1);
+                }
+                
+                // 更新节点尺寸
+                const minHeight = Math.max(120, this.computeSize()[1]);
+                this.size[1] = Math.max(this.size[1], minHeight);
+                
+                this.setDirtyCanvas(true, true);
+            };
+            
+            nodeType.prototype.addNonArtistWidgets = function() {
+                // 添加 header
+                this.widgets.push(new RgthreeDividerWidget({ marginTop: 5 }));
+                this.widgets.push(new PowerArtistHeaderWidget());
+                this.widgets.push(new RgthreeDividerWidget({ marginTop: 5 }));
+                
+                // 添加按钮 - 修改回调逻辑
+                this.widgets.push(new RgthreeButtonWidget("➕ Add Artist", (event, pos, node) => {
+                    // 先弹出菜单选择画师
+                    const menu = ARTISTS_LIST.map(artist => ({
+                        content: artist,
+                        callback: () => {
+                            // 选择后创建新的 widget 并设置画师
+                            const widget = node.addNewArtistWidget();
+                            widget.value.artist = artist;
+                            if (artist !== "None") {
+                                widget.value.on = true; // 自动启用
+                            }
+                            node.setDirtyCanvas(true, true);
+                        }
+                    }));
+                    
+                    const contextMenu = new LiteGraph.ContextMenu(menu, {
+                        event: event,
+                        title: "Choose Artist to Add",
+                        className: "dark"
+                    });
+                    
+                    // 为菜单项添加悬停预览 - 复用现有逻辑
+                    setTimeout(() => {
+                        if (!contextMenu.root) return;
+                        
+                        const menuItems = contextMenu.root.querySelectorAll('.litemenu-entry');
+                        
+                        menuItems.forEach((item, index) => {
+                            const artistName = ARTISTS_LIST[index];
+                            
+                            if (!artistName || artistName === "None") return;
+                            
+                            item.addEventListener('mouseenter', (e) => {
+                                const rect = item.getBoundingClientRect();
+                                PreviewImage.show(artistName, rect.right + 15, rect.top);
+                            });
+                            
+                            item.addEventListener('mouseleave', () => {
+                                PreviewImage.scheduleHide();
+                            });
+                        });
+                        
+                        // 菜单关闭时清理预览
+                        const originalClose = contextMenu.close.bind(contextMenu);
+                        contextMenu.close = function() {
+                            PreviewImage.hide();
+                            originalClose();
+                        };
+                    }, 10);
+                    
+                    return true;
+                }));
+                
+                this.widgets.push(new RgthreeDividerWidget({ marginTop: 5 }));
+            };
         }
     }
 });
 
-console.log("🎨 PowerArtistLoader extension loaded successfully (CSV powered)");
+console.log("Power Artist Loader loaded successfully with dropdown preview feature");
