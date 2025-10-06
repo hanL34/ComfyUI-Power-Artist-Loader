@@ -25,7 +25,7 @@
 ### 方法 1: Git Clone
 ```bash
 cd ComfyUI/custom_nodes
-git clone https://github.com/yourusername/ComfyUI-Power-Artist-Loader.git
+git clone https://github.com/hanL34/ComfyUI-Power-Artist-Loader.git
 cd ComfyUI-Power-Artist-Loader
 
 ### 方法 2: ComfyUI Manager
@@ -34,7 +34,7 @@ cd ComfyUI-Power-Artist-Loader
 3. 点击安装并重启
 
 ### 方法 3: 手动安装
-1. 下载 [最新 Release](https://github.com/yourusername/ComfyUI-Power-Artist-Loader/releases)
+1. 下载 [最新 Release](https://github.com/hanL34/ComfyUI-Power-Artist-Loader.git)
 2. 解压到 `ComfyUI/custom_nodes/`
 3. 重启 ComfyUI
 
