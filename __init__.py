@@ -1,10 +1,5 @@
 """
 Power Artist Loader - ComfyUI Custom Node
-类似Power LoRA Loader但用于画师名字的节点
-
-Author: Your Name
-Version: 1.0.0
-License: MIT
 """
 
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
