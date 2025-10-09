@@ -99,9 +99,18 @@ class PreviewImage {
             border-radius: 8px;
             padding: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.9);
-            pointer-events: none;
+            pointer-events: auto;
             max-width: 300px;
         `;
+        
+        // 添加鼠标事件监听
+        this.instance.addEventListener('mouseenter', () => {
+            this.cancelHide();
+        });
+        
+        this.instance.addEventListener('mouseleave', () => {
+            this.scheduleHide();
+        });
         
         const img = document.createElement('img');
         const imgSrc = `/power_artist_loader/preview/${artistData.image}`;
@@ -117,8 +126,8 @@ class PreviewImage {
         const info = document.createElement('div');
         info.style.cssText = 'color: #fff; font-size: 11px; line-height: 1.4;';
         info.innerHTML = `
-            <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
-            <div style="color: #ccc;">${artistData.keywords}</div>
+            <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px; word-wrap: break-word;">${artistData.name}</div>
+            <div style="color: #ccc; word-wrap: break-word; overflow-wrap: break-word; max-height: 150px; overflow-y: auto;">${artistData.keywords}</div>
         `;
         
         // 保存当前实例引用
@@ -134,8 +143,8 @@ class PreviewImage {
             if (currentInstance && currentInstance.parentNode && this.instance === currentInstance) {
                 currentInstance.innerHTML = `
                     <div style="color: #fff; font-size: 11px; padding: 8px;">
-                        <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
-                        <div style="color: #ccc;">${artistData.keywords}</div>
+                        <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px; word-wrap: break-word;">${artistData.name}</div>
+                        <div style="color: #ccc; word-wrap: break-word; overflow-wrap: break-word; max-height: 150px; overflow-y: auto;">${artistData.keywords}</div>
                         <div style="color: #888; margin-top: 6px; font-size: 10px;">📷 Preview not available</div>
                     </div>
                 `;
@@ -163,14 +172,23 @@ class PreviewImage {
             border-radius: 8px;
             padding: 12px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.9);
-            pointer-events: none;
+            pointer-events: auto;
             max-width: 300px;
         `;
         
+        // 添加鼠标事件监听
+        this.instance.addEventListener('mouseenter', () => {
+            this.cancelHide();
+        });
+        
+        this.instance.addEventListener('mouseleave', () => {
+            this.scheduleHide();
+        });
+        
         this.instance.innerHTML = `
             <div style="color: #fff; font-size: 11px; line-height: 1.4;">
-                <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px;">${artistData.name}</div>
-                <div style="color: #ccc;">${artistData.keywords}</div>
+                <div style="font-weight: bold; color: #4CAF50; margin-bottom: 4px; word-wrap: break-word;">${artistData.name}</div>
+                <div style="color: #ccc; word-wrap: break-word; overflow-wrap: break-word; max-height: 150px; overflow-y: auto;">${artistData.keywords}</div>
             </div>
         `;
         
@@ -184,6 +202,13 @@ class PreviewImage {
         this.hideTimer = setTimeout(() => {
             this.hide();
         }, delay);
+    }
+    
+    static cancelHide() {
+        if (this.hideTimer) {
+            clearTimeout(this.hideTimer);
+            this.hideTimer = null;
+        }
     }
     
     static hide() {
@@ -316,6 +341,9 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         this.serialize = true;
         this.isMouseOver = false;
         this.dragStrength = false;
+        this.dragStartX = undefined;
+        this.dragStartTime = undefined;
+        this.hasDragged = false;
         
         this._value = {
             on: false,
@@ -356,14 +384,14 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         ctx.textBaseline = "middle";
         
         const artistName = this.value.artist || "None";
-        const nameWidth = 150;
-        const displayName = this.fitString(ctx, artistName, nameWidth);
+        // 动态计算名称可用宽度：总宽度 - 左边距 - 开关 - 右边距 - 权重控件(70) - 间距
+        const strengthWidgetWidth = 70;
+        const availableNameWidth = width - posX - margin - strengthWidgetWidth - innerMargin * 2;
+        const displayName = this.fitString(ctx, artistName, availableNameWidth);
         ctx.fillText(displayName, posX, midY);
         
-        posX += nameWidth + innerMargin;
-        
         const strengthValue = this.value.strength || 1.00;
-        this.drawStrengthWidget(ctx, width - margin - 70, posY, 70, height, strengthValue);
+        this.drawStrengthWidget(ctx, width - margin - strengthWidgetWidth, posY, strengthWidgetWidth, height, strengthValue);
         
         this.last_y = posY;
         
@@ -414,6 +442,7 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         const yOffset = 2;
         const h = height - 4;
         
+        // 左箭头按钮
         ctx.fillStyle = "#555555";
         ctx.fillRect(x, y + yOffset, arrowWidth, h);
         ctx.strokeStyle = "#777777";
@@ -425,21 +454,27 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         ctx.textBaseline = "middle";
         ctx.fillText("◀", x + arrowWidth/2, y + height/2);
         
+        // 中间数值区域
         const valueX = x + arrowWidth;
-        ctx.fillStyle = "#333333";
+        // 如果正在拖拽，高亮显示
+        ctx.fillStyle = this.dragStrength ? "#444444" : "#333333";
         ctx.fillRect(valueX, y + yOffset, valueWidth, h);
-        ctx.strokeStyle = "#777777";
+        ctx.strokeStyle = this.dragStrength ? "#4CAF50" : "#777777";
+        ctx.lineWidth = this.dragStrength ? 2 : 1;
         ctx.strokeRect(valueX, y + yOffset, valueWidth, h);
         
+        // 数值文本
         ctx.fillStyle = value !== 1.0 ? "#FFC107" : "#CCCCCC";
-        ctx.font = "10px Arial";
+        ctx.font = this.dragStrength ? "bold 10px Arial" : "10px Arial";
         const valueText = value.toFixed(2);
         ctx.fillText(valueText, valueX + valueWidth/2, y + height/2);
         
+        // 右箭头按钮
         const rightX = valueX + valueWidth;
         ctx.fillStyle = "#555555";
         ctx.fillRect(rightX, y + yOffset, arrowWidth, h);
         ctx.strokeStyle = "#777777";
+        ctx.lineWidth = 1;
         ctx.strokeRect(rightX, y + yOffset, arrowWidth, h);
         
         ctx.fillStyle = "#FFFFFF";
@@ -454,12 +489,28 @@ class PowerArtistWidget extends RgthreeBaseWidget {
     }
     
     fitString(ctx, text, maxWidth) {
-        if (ctx.measureText(text).width <= maxWidth) return text;
+        // 如果文本为空或宽度为负，直接返回
+        if (!text || maxWidth <= 0) return "";
         
-        while (text.length > 3 && ctx.measureText(text + "...").width > maxWidth) {
-            text = text.substring(0, text.length - 1);
+        const fullWidth = ctx.measureText(text).width;
+        if (fullWidth <= maxWidth) return text;
+        
+        // 如果连省略号都放不下，返回单个字符
+        if (maxWidth < ctx.measureText("...").width) {
+            return text.charAt(0);
         }
-        return text + "...";
+        
+        // 逐步减少字符直到合适
+        let truncated = text;
+        while (truncated.length > 0) {
+            const testWidth = ctx.measureText(truncated + "...").width;
+            if (testWidth <= maxWidth) {
+                return truncated + "...";
+            }
+            truncated = truncated.substring(0, truncated.length - 1);
+        }
+        
+        return "...";
     }
     
     mouse(event, pos, node) {
@@ -467,6 +518,14 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         const localX = pos[0];
         
         if (localY < 0 || localY > 25) {
+            // 如果正在拖动权重，允许在Y轴范围外继续拖动
+            if (this.dragStrength && event.type === "pointermove") {
+                const delta = event.movementX * 0.005;
+                this.adjustStrength(delta);
+                node.setDirtyCanvas(true, true);
+                return true;
+            }
+            
             if (this.isMouseOver) {
                 PreviewImage.hide();
                 this.isMouseOver = false;
@@ -474,17 +533,71 @@ class PowerArtistWidget extends RgthreeBaseWidget {
             return false;
         }
         
-        // 右键菜单 - 在整个widget区域检测，并标记已处理
+        // 右键菜单 - 只在名称区域触发
         if (event.type === "pointerdown" && event.button === 2) {
-            PreviewImage.hide();
-            this.isMouseOver = false;
+            // 名称区域：开关之后(35)到权重控件之前(约240)
+            const nameStartX = 35;
+            const nameEndX = 240;
             
-            // 阻止节点的右键菜单
-            event.stopPropagation();
-            event.preventDefault();
+            // 只在名称区域触发艺术家菜单
+            if (localX >= nameStartX && localX < nameEndX) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+                
+                // 阻止事件冒泡，避免触发节点菜单
+                event.stopPropagation();
+                event.preventDefault();
+                
+                // 直接创建菜单
+                const options = [
+                    {
+                        content: this.value.on ? "⌨ Disable" : "✅ Enable",
+                        callback: () => {
+                            this.value.on = !this.value.on;
+                            node.setDirtyCanvas(true, true);
+                        }
+                    },
+                    null,
+                    {
+                        content: "🔼 Move Up",
+                        disabled: !node.canMoveWidgetUp || !node.canMoveWidgetUp(this),
+                        callback: () => {
+                            if (node.moveWidgetUp) {
+                                node.moveWidgetUp(this);
+                            }
+                        }
+                    },
+                    {
+                        content: "🔽 Move Down",
+                        disabled: !node.canMoveWidgetDown || !node.canMoveWidgetDown(this),
+                        callback: () => {
+                            if (node.moveWidgetDown) {
+                                node.moveWidgetDown(this);
+                            }
+                        }
+                    },
+                    null,
+                    {
+                        content: "🗑️ Remove",
+                        callback: () => {
+                            if (node.removeArtistWidget) {
+                                node.removeArtistWidget(this);
+                            }
+                        }
+                    }
+                ];
+                
+                new LiteGraph.ContextMenu(options, {
+                    event: event,
+                    title: "Artist Options",
+                    className: "dark"
+                });
+                
+                return true;
+            }
             
-            this.showContextMenu(event, node);
-            return true;
+            // 其他区域不处理，让事件传播到节点层级
+            return false;
         }
         
         // 开关区域
@@ -497,8 +610,8 @@ class PowerArtistWidget extends RgthreeBaseWidget {
             }
         }
         
-        // 画师名称区域
-        else if (localX >= 35 && localX <= 185) {
+        // 画师名称区域 - 只有不在拖动状态时才响应
+        else if (!this.dragStrength && localX >= 35 && localX <= 185) {
             if (event.type === "pointermove") {
                 const artistName = this.value.artist;
                 if (artistName && artistName !== "None") {
@@ -532,42 +645,82 @@ class PowerArtistWidget extends RgthreeBaseWidget {
         }
         
         // 权重控制区域
-        else if (this.strengthAreas && localX >= this.strengthAreas.total.x && localX <= this.strengthAreas.total.x + this.strengthAreas.total.width) {
-            if (event.type === "pointerdown" && event.button === 0) {
+        else if (this.strengthAreas) {
+            const widgetStartX = this.strengthAreas.total.x;
+            const widgetEndX = widgetStartX + this.strengthAreas.total.width;
+            
+            // 拖动状态下，允许在X轴范围外继续拖动
+            if (this.dragStrength && event.type === "pointermove") {
                 PreviewImage.hide();
                 this.isMouseOver = false;
-                
-                const widgetStartX = this.strengthAreas.total.x;
-                const relativeX = localX - widgetStartX;
-                
-                if (relativeX >= 0 && relativeX <= 15) {
-                    this.adjustStrength(-0.05);
-                    node.setDirtyCanvas(true, true);
-                    return true;
-                }
-                else if (relativeX >= 55 && relativeX <= 70) {
-                    this.adjustStrength(0.05);
-                    node.setDirtyCanvas(true, true);
-                    return true;
-                }
-                else if (relativeX > 15 && relativeX < 55) {
-                    this.showWeightInput(event, node);
-                    return true;
-                }
-            }
-            else if (event.type === "pointermove" && event.buttons === 1 && this.dragStrength) {
-                this.adjustStrength(event.movementX * 0.01);
+                const delta = event.movementX * 0.005;
+                this.adjustStrength(delta);
                 node.setDirtyCanvas(true, true);
                 return true;
             }
-            else if (event.type === "pointerdown" && event.buttons === 1) {
+            
+            // 只有在widget区域内才处理点击
+            if (localX >= widgetStartX && localX <= widgetEndX) {
+                PreviewImage.hide();
+                this.isMouseOver = false;
+                
+                const relativeX = localX - widgetStartX;
+                
+                // 开始拖动或点击
+                if (event.type === "pointerdown" && event.button === 0) {
+                    // 左箭头区域：减少
+                    if (relativeX >= 0 && relativeX <= 15) {
+                        this.adjustStrength(-0.05);
+                        node.setDirtyCanvas(true, true);
+                        return true;
+                    }
+                    // 右箭头区域：增加
+                    else if (relativeX >= 55 && relativeX <= 70) {
+                        this.adjustStrength(0.05);
+                        node.setDirtyCanvas(true, true);
+                        return true;
+                    }
+                    // 中间数值区域：记录点击位置，准备拖动或输入
+                    else if (relativeX > 15 && relativeX < 55) {
+                        this.dragStartX = localX;
+                        this.dragStartTime = Date.now();
+                        this.hasDragged = false;
+                        return true;
+                    }
+                }
+            }
+        }
+        
+        // 处理拖动移动
+        if (event.type === "pointermove" && this.dragStartX !== undefined) {
+            const dragDistance = Math.abs(localX - this.dragStartX);
+            // 移动超过3像素才认为是拖动
+            if (dragDistance > 3) {
                 this.dragStrength = true;
+                this.hasDragged = true;
+                const delta = event.movementX * 0.005;
+                this.adjustStrength(delta);
+                node.setDirtyCanvas(true, true);
                 return true;
             }
         }
         
+        // 鼠标释放
+        if (event.type === "pointerup" && this.dragStartX !== undefined) {
+            const clickDuration = Date.now() - this.dragStartTime;
+            // 如果没有拖动且点击时间短，认为是点击，弹出输入框
+            if (!this.hasDragged && clickDuration < 300) {
+                this.showWeightInput(event, node);
+            }
+            this.dragStartX = undefined;
+            this.dragStartTime = undefined;
+            this.hasDragged = false;
+            this.dragStrength = false;
+            return true;
+        }
+        
         // 鼠标离开时隐藏预览
-        if (event.type === "pointerleave" || (event.type === "pointermove" && (localX < 35 || localX > 185))) {
+        if (event.type === "pointerleave" || (event.type === "pointermove" && !this.dragStrength && (localX < 35 || localX > 185))) {
             if (this.isMouseOver) {
                 PreviewImage.hide();
                 this.isMouseOver = false;
@@ -578,12 +731,28 @@ class PowerArtistWidget extends RgthreeBaseWidget {
     }
     
     onMouseUp(event, pos, node) {
-        this.dragStrength = false;
+        if (this.dragStrength || this.dragStartX !== undefined) {
+            this.dragStrength = false;
+            this.dragStartX = undefined;
+            this.dragStartTime = undefined;
+            this.hasDragged = false;
+            node.setDirtyCanvas(true, true);
+        }
+    }
+    
+    onMouseLeave(event, pos, node) {
+        if (this.dragStrength || this.dragStartX !== undefined) {
+            this.dragStrength = false;
+            this.dragStartX = undefined;
+            this.dragStartTime = undefined;
+            this.hasDragged = false;
+        }
     }
     
     adjustStrength(delta) {
         this.value.strength = (this.value.strength || 1.0) + delta;
-        this.value.strength = Math.max(0.0, Math.min(3.0, this.value.strength));
+        // 范围限制：-1.0 到 3.0
+        this.value.strength = Math.max(-1.0, Math.min(3.0, this.value.strength));
         this.value.strength = Math.round(this.value.strength * 100) / 100;
     }
     
@@ -636,9 +805,11 @@ class PowerArtistWidget extends RgthreeBaseWidget {
     
     showWeightInput(event, node) {
         const canvas = app.canvas;
-        canvas.prompt("Strength Value (0.00 - 3.00)", this.value.strength.toFixed(2), (v) => {
-            const newValue = parseFloat(v);
-            if (!isNaN(newValue) && newValue >= 0.0 && newValue <= 3.0) {
+        canvas.prompt("Strength Value (-1.00 to 3.00)", this.value.strength.toFixed(2), (v) => {
+            let newValue = parseFloat(v);
+            if (!isNaN(newValue)) {
+                // 自动限制在范围内
+                newValue = Math.max(-1.0, Math.min(3.0, newValue));
                 this.value.strength = Math.round(newValue * 100) / 100;
                 node.setDirtyCanvas(true, true);
             }
@@ -651,28 +822,6 @@ class PowerArtistWidget extends RgthreeBaseWidget {
                 content: this.value.on ? "⌨ Disable" : "✅ Enable",
                 callback: () => {
                     this.value.on = !this.value.on;
-                    node.setDirtyCanvas(true, true);
-                }
-            },
-            null,
-            {
-                content: "⚖️ Strength 0.50",
-                callback: () => {
-                    this.value.strength = 0.50;
-                    node.setDirtyCanvas(true, true);
-                }
-            },
-            {
-                content: "⚖️ Strength 1.00",
-                callback: () => {
-                    this.value.strength = 1.00;
-                    node.setDirtyCanvas(true, true);
-                }
-            },
-            {
-                content: "⚖️ Strength 1.50",
-                callback: () => {
-                    this.value.strength = 1.50;
                     node.setDirtyCanvas(true, true);
                 }
             },
@@ -813,80 +962,12 @@ app.registerExtension({
                 this.setDirtyCanvas(true, true);
             };
             
-            // 添加节点级别的右键菜单
+            // 节点级别的右键菜单 - 不添加艺术家菜单
             const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
             nodeType.prototype.getExtraMenuOptions = function(_, options) {
                 const r = getExtraMenuOptions ? getExtraMenuOptions.apply(this, arguments) : undefined;
-                
-                if (this.artistWidgets && this.artistWidgets.length > 0) {
-                    options.push(null); // 分隔线
-                    
-                    // 为每个画师 widget 添加子菜单
-                    this.artistWidgets.forEach((widget, index) => {
-                        const artistName = widget.value.artist || "None";
-                        
-                        options.push({
-                            content: `🎨 ${artistName}`,
-                            has_submenu: true,
-                            submenu: {
-                                options: [
-                                    {
-                                        content: widget.value.on ? "⌨ Disable" : "✅ Enable",
-                                        callback: () => {
-                                            widget.value.on = !widget.value.on;
-                                            this.setDirtyCanvas(true, true);
-                                        }
-                                    },
-                                    null,
-                                    {
-                                        content: "⚖️ Strength 0.50",
-                                        callback: () => {
-                                            widget.value.strength = 0.50;
-                                            this.setDirtyCanvas(true, true);
-                                        }
-                                    },
-                                    {
-                                        content: "⚖️ Strength 1.00",
-                                        callback: () => {
-                                            widget.value.strength = 1.00;
-                                            this.setDirtyCanvas(true, true);
-                                        }
-                                    },
-                                    {
-                                        content: "⚖️ Strength 1.50",
-                                        callback: () => {
-                                            widget.value.strength = 1.50;
-                                            this.setDirtyCanvas(true, true);
-                                        }
-                                    },
-                                    null,
-                                    {
-                                        content: "🔼 Move Up",
-                                        disabled: !this.canMoveWidgetUp(widget),
-                                        callback: () => {
-                                            this.moveWidgetUp(widget);
-                                        }
-                                    },
-                                    {
-                                        content: "🔽 Move Down",
-                                        disabled: !this.canMoveWidgetDown(widget),
-                                        callback: () => {
-                                            this.moveWidgetDown(widget);
-                                        }
-                                    },
-                                    null,
-                                    {
-                                        content: "🗑️ Remove",
-                                        callback: () => {
-                                            this.removeArtistWidget(widget);
-                                        }
-                                    }
-                                ]
-                            }
-                        });
-                    });
-                }
-                
+                // 不添加任何艺术家相关菜单
+                // 艺术家操作通过右键点击名称区域完成
                 return r;
             };
             
@@ -1074,6 +1155,54 @@ app.registerExtension({
                 }));
                 
                 this.widgets.push(new RgthreeDividerWidget({ marginTop: 5 }));
+            };
+            
+            // 序列化：保存节点状态
+            const originalSerialize = nodeType.prototype.serialize;
+            nodeType.prototype.serialize = function() {
+                const data = originalSerialize ? originalSerialize.apply(this, arguments) : {};
+                
+                // 保存artist widgets数据
+                data.artistWidgetsData = [];
+                if (this.artistWidgets) {
+                    for (const widget of this.artistWidgets) {
+                        if (widget.value) {
+                            data.artistWidgetsData.push({
+                                artist: widget.value.artist,
+                                on: widget.value.on,
+                                strength: widget.value.strength
+                            });
+                        }
+                    }
+                }
+                
+                return data;
+            };
+            
+            // 反序列化：恢复节点状态
+            const originalConfigure = nodeType.prototype.configure;
+            nodeType.prototype.configure = function(data) {
+                if (originalConfigure) {
+                    originalConfigure.apply(this, arguments);
+                }
+                
+                // 恢复artist widgets
+                if (data.artistWidgetsData && Array.isArray(data.artistWidgetsData)) {
+                    // 清空现有的artist widgets
+                    if (this.artistWidgets) {
+                        for (const widget of [...this.artistWidgets]) {
+                            this.removeArtistWidget(widget);
+                        }
+                    }
+                    
+                    // 重新创建widgets
+                    for (const widgetData of data.artistWidgetsData) {
+                        const widget = this.addNewArtistWidget();
+                        widget.value.artist = widgetData.artist || "None";
+                        widget.value.on = widgetData.on !== undefined ? widgetData.on : false;
+                        widget.value.strength = widgetData.strength !== undefined ? widgetData.strength : 1.0;
+                    }
+                }
             };
         }
     }
