@@ -5,6 +5,13 @@
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Compatible-green.svg)
 
+## 10-9更新功能
+1. 修复刷新后节点重置，现在会保留上一次的设置状态
+2. 新增权重左右拖动改变数值的功能
+3. 修复字数过多，导致预览显示超出框外的bug，现在可在预览框内滚动显示
+4. 右键菜单去掉strength0.5等3个低频使用功能项
+5. 修改权重范围为-1.0到3.0，可使用负权重
+
 ## 特性
 
 ### 核心功能
@@ -22,40 +29,11 @@
 
 ## 安装
 
-### 方法 1: Git Clone
+### 方法 : Git Clone
 ```bash
 cd ComfyUI/custom_nodes
 git clone https://github.com/hanL34/ComfyUI-Power-Artist-Loader.git
 cd ComfyUI-Power-Artist-Loader
-
-### 方法 2: ComfyUI Manager
-1. 打开 ComfyUI Manager
-2. 搜索 "Power Artist Loader"
-3. 点击安装并重启
-
-### 方法 3: 手动安装
-1. 下载 [最新 Release](https://github.com/hanL34/ComfyUI-Power-Artist-Loader.git)
-2. 解压到 `ComfyUI/custom_nodes/`
-3. 重启 ComfyUI
-
-## 快速开始
-
-### 基础工作流
-```
-Power Artist Loader → CLIP Text Encode (Positive) → KSampler
-```
-
-### 示例输出
-
-**输入**：
-- Base Text: `masterpiece, best quality, 1girl`
-- Artist 1: Akira Toriyama (启用, 权重 1.2)
-- Artist 2: Studio Ghibli (启用, 权重 0.8)
-
-**输出**：
-```
-masterpiece, best quality, 1girl, (akira toriyama style, anime, dragon ball:1.20), (hayao miyazaki, studio ghibli, anime film:0.80)
-```
 
 ## 使用说明
 
@@ -168,14 +146,13 @@ ComfyUI-Power-Artist-Loader/
 
 - 单节点最多建议 20 个画师槽位（性能考虑）或组合
 - 预览图需手动准备，不自动下载
-- 权重范围 0.00-3.00（可修改代码调整）
+- 权重范围 -1.00-3.00
 
 ## 开发计划
 
 - [ ] 内置R热更新CSV读取
 - [ ] 分类折叠显示
 - [ ] 预设组合保存/加载
-- [ ] 拖拽排序
 - [ ] 导出为独立提示词文件
 - [ ] 多语言界面
 
