@@ -5,7 +5,7 @@
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Compatible-green.svg)
 
-## 10-9更新功能
+## 更新功能2025-10-09
 1. 修复刷新后节点重置，现在会保留上一次的设置状态
 2. 新增权重左右拖动改变数值的功能
 3. 修复字数过多，导致预览显示超出框外的bug，现在可在预览框内滚动显示
