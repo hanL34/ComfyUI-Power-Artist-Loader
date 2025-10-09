@@ -533,71 +533,17 @@ class PowerArtistWidget extends RgthreeBaseWidget {
             return false;
         }
         
-        // 右键菜单 - 只在名称区域触发
+        // 右键菜单 - 在整个widget区域检测，并标记已处理
         if (event.type === "pointerdown" && event.button === 2) {
-            // 名称区域：开关之后(35)到权重控件之前(约240)
-            const nameStartX = 35;
-            const nameEndX = 240;
+            PreviewImage.hide();
+            this.isMouseOver = false;
             
-            // 只在名称区域触发艺术家菜单
-            if (localX >= nameStartX && localX < nameEndX) {
-                PreviewImage.hide();
-                this.isMouseOver = false;
-                
-                // 阻止事件冒泡，避免触发节点菜单
-                event.stopPropagation();
-                event.preventDefault();
-                
-                // 直接创建菜单
-                const options = [
-                    {
-                        content: this.value.on ? "⌨ Disable" : "✅ Enable",
-                        callback: () => {
-                            this.value.on = !this.value.on;
-                            node.setDirtyCanvas(true, true);
-                        }
-                    },
-                    null,
-                    {
-                        content: "🔼 Move Up",
-                        disabled: !node.canMoveWidgetUp || !node.canMoveWidgetUp(this),
-                        callback: () => {
-                            if (node.moveWidgetUp) {
-                                node.moveWidgetUp(this);
-                            }
-                        }
-                    },
-                    {
-                        content: "🔽 Move Down",
-                        disabled: !node.canMoveWidgetDown || !node.canMoveWidgetDown(this),
-                        callback: () => {
-                            if (node.moveWidgetDown) {
-                                node.moveWidgetDown(this);
-                            }
-                        }
-                    },
-                    null,
-                    {
-                        content: "🗑️ Remove",
-                        callback: () => {
-                            if (node.removeArtistWidget) {
-                                node.removeArtistWidget(this);
-                            }
-                        }
-                    }
-                ];
-                
-                new LiteGraph.ContextMenu(options, {
-                    event: event,
-                    title: "Artist Options",
-                    className: "dark"
-                });
-                
-                return true;
-            }
+            // 阻止节点的右键菜单
+            event.stopPropagation();
+            event.preventDefault();
             
-            // 其他区域不处理，让事件传播到节点层级
-            return false;
+            this.showContextMenu(event, node);
+            return true;
         }
         
         // 开关区域
@@ -962,12 +908,58 @@ app.registerExtension({
                 this.setDirtyCanvas(true, true);
             };
             
-            // 节点级别的右键菜单 - 不添加艺术家菜单
+            // 添加节点级别的右键菜单
             const getExtraMenuOptions = nodeType.prototype.getExtraMenuOptions;
             nodeType.prototype.getExtraMenuOptions = function(_, options) {
                 const r = getExtraMenuOptions ? getExtraMenuOptions.apply(this, arguments) : undefined;
-                // 不添加任何艺术家相关菜单
-                // 艺术家操作通过右键点击名称区域完成
+                
+                if (this.artistWidgets && this.artistWidgets.length > 0) {
+                    options.push(null); // 分隔线
+                    
+                    // 为每个画师 widget 添加子菜单
+                    this.artistWidgets.forEach((widget, index) => {
+                        const artistName = widget.value.artist || "None";
+                        
+                        options.push({
+                            content: `🎨 ${artistName}`,
+                            has_submenu: true,
+                            submenu: {
+                                options: [
+                                    {
+                                        content: widget.value.on ? "⌨ Disable" : "✅ Enable",
+                                        callback: () => {
+                                            widget.value.on = !widget.value.on;
+                                            this.setDirtyCanvas(true, true);
+                                        }
+                                    },
+                                    null,
+                                    {
+                                        content: "🔼 Move Up",
+                                        disabled: !this.canMoveWidgetUp(widget),
+                                        callback: () => {
+                                            this.moveWidgetUp(widget);
+                                        }
+                                    },
+                                    {
+                                        content: "🔽 Move Down",
+                                        disabled: !this.canMoveWidgetDown(widget),
+                                        callback: () => {
+                                            this.moveWidgetDown(widget);
+                                        }
+                                    },
+                                    null,
+                                    {
+                                        content: "🗑️ Remove",
+                                        callback: () => {
+                                            this.removeArtistWidget(widget);
+                                        }
+                                    }
+                                ]
+                            }
+                        });
+                    });
+                }
+                
                 return r;
             };
             
