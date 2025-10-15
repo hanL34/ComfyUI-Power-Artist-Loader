@@ -196,6 +196,75 @@ async def get_preview_image(request):
     except Exception as e:
         return web.Response(status=404)
 
+@PromptServer.instance.routes.get("/power_artist_loader/csv/read")
+async def read_csv(request):
+    """读取CSV文件内容API"""
+    try:
+        csv_path = os.path.join(os.path.dirname(__file__), "artists.csv")
+        artists = []
+        
+        if os.path.exists(csv_path):
+            async with aiofiles.open(csv_path, 'r', encoding='utf-8') as f:
+                content = await f.read()
+                for line in content.split('\n'):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    
+                    parts = line.split(';')
+                    if len(parts) >= 2:
+                        artists.append({
+                            'name': parts[0].strip(),
+                            'keywords': parts[1].strip(),
+                            'image': parts[2].strip() if len(parts) > 2 else ''
+                        })
+        
+        return web.json_response({
+            'success': True,
+            'artists': artists
+        })
+    except Exception as e:
+        return web.json_response({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+@PromptServer.instance.routes.post("/power_artist_loader/csv/save")
+async def save_csv(request):
+    """保存CSV文件API"""
+    try:
+        data = await request.json()
+        artists = data.get('artists', [])
+        
+        csv_path = os.path.join(os.path.dirname(__file__), "artists.csv")
+        
+        # 构建CSV内容
+        lines = []
+        for artist in artists:
+            name = artist.get('name', '').strip()
+            keywords = artist.get('keywords', '').strip()
+            image = artist.get('image', '').strip()
+            
+            if name:  # 只保存有名字的行
+                lines.append(f"{name};{keywords};{image}")
+        
+        # 写入文件
+        async with aiofiles.open(csv_path, 'w', encoding='utf-8') as f:
+            await f.write('\n'.join(lines))
+        
+        # 重新加载数据到内存
+        power_artist_loader_instance.load_artists_data()
+        
+        return web.json_response({
+            'success': True,
+            'message': f'Saved {len(lines)} artists'
+        })
+    except Exception as e:
+        return web.json_response({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
 # 节点类映射
 NODE_CLASS_MAPPINGS = {
     "PowerArtistLoader": PowerArtistLoader
