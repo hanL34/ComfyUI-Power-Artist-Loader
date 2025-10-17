@@ -17,6 +17,9 @@ class PowerArtistLoader:
     
     def load_artists_data(self):
         """从CSV文件加载画师数据 - 使用分号分隔"""
+        # ⭐ 关键修复：每次重新加载前先清空字典
+        self.artists_data = {}
+        
         csv_path = os.path.join(os.path.dirname(__file__), "artists.csv")
         
         if os.path.exists(csv_path):
