@@ -10,6 +10,8 @@
 2. 新增Artist manager撤销功能，最大可撤销20步操作
 3. 优化预览图片实时同步功能，本地image文件夹添加对应Artist名称的图片后，节点能即时预览
 4. 修复节点的网页缓存逻辑，现更新CSV或本地图片后，不会再显示旧的内容
+5. <img width="1201" height="827" alt="image" src="https://github.com/user-attachments/assets/6f471c4d-7468-433c-9831-44341988e3a4" />
+
 
 ## 更新功能2025-10-09
 1. 修复刷新后节点重置，现在会保留上一次的设置状态
