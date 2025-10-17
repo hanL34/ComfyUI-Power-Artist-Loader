@@ -1,8 +1,8 @@
 {
   "id": "145399e7-74e7-4266-835d-9d0251bd65bf",
   "revision": 0,
-  "last_node_id": 17,
-  "last_link_id": 13,
+  "last_node_id": 18,
+  "last_link_id": 14,
   "nodes": [
     {
       "id": 7,
@@ -173,7 +173,7 @@
           "widget": {
             "name": "string_b"
           },
-          "link": 11
+          "link": 14
         }
       ],
       "outputs": [
@@ -246,7 +246,7 @@
         }
       },
       "widgets_values": [
-        "1girl,solo,looking at viewer,smile,bangs,white background,dress,bare shoulders,standing,full body,yellow eyes,detached sleeves,white dress,halo,orange thighhighs,(Yoneyama Mai:1.20)"
+        "1girl,solo,looking at viewer,smile,bangs,white background,dress,bare shoulders,standing,full body,yellow eyes,detached sleeves,white dress,halo,orange thighhighs,reoen,best-quality,masterpiece,with a high-end texture,(extremely detailed CG unity 8k wallpaper,masterpiece),(Gao Jian Lighting:1.2),Dramatic Lighting,Ray Tracing,(8k resolution),wide_shot,foreshortening,dynamic_angle,cinematic_angle,spot_color"
       ]
     },
     {
@@ -354,40 +354,6 @@
       ]
     },
     {
-      "id": 10,
-      "type": "PowerArtistLoader",
-      "pos": [
-        5.679532527923584,
-        -62.77491760253906
-      ],
-      "size": [
-        320,
-        177
-      ],
-      "flags": {},
-      "order": 2,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "text",
-          "type": "STRING",
-          "links": [
-            11
-          ]
-        }
-      ],
-      "properties": {
-        "Node name for S&R": "PowerArtistLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.1",
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": []
-    },
-    {
       "id": 3,
       "type": "KSampler",
       "pos": [
@@ -488,6 +454,53 @@
       "widgets_values": [
         "ComfyUI"
       ]
+    },
+    {
+      "id": 18,
+      "type": "PowerArtistLoader",
+      "pos": [
+        1.2976572382515676,
+        -35.684810866123925
+      ],
+      "size": [
+        320,
+        148
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            14
+          ]
+        }
+      ],
+      "properties": {
+        "aux_id": "hanL34/ComfyUI-Power-Artist-Loader",
+        "ver": "05f4112e8ada43feda47d74be185ac50fc05b816",
+        "Node name for S&R": "PowerArtistLoader"
+      },
+      "widgets_values": [
+        null,
+        null,
+        null,
+        {
+          "on": true,
+          "artist": "通用质量词",
+          "strength": 1
+        }
+      ],
+      "artistWidgetsData": [
+        {
+          "artist": "通用质量词",
+          "on": true,
+          "strength": 1
+        }
+      ]
     }
   ],
   "links": [
@@ -564,14 +577,6 @@
       "IMAGE"
     ],
     [
-      11,
-      10,
-      0,
-      16,
-      0,
-      "STRING"
-    ],
-    [
       12,
       16,
       0,
@@ -586,21 +591,29 @@
       17,
       0,
       "STRING"
+    ],
+    [
+      14,
+      18,
+      0,
+      16,
+      0,
+      "STRING"
     ]
   ],
   "groups": [],
   "config": {},
   "extra": {
-    "ue_links": [],
-    "links_added_by_ue": [],
     "ds": {
-      "scale": 0.7864972160495391,
+      "scale": 0.7149974691359453,
       "offset": [
-        672.5763110157147,
-        333.20652515183735
+        583.2007467443414,
+        408.12593093550237
       ]
     },
-    "frontendVersion": "1.26.7"
+    "frontendVersion": "1.29.1",
+    "ue_links": [],
+    "links_added_by_ue": []
   },
   "version": 0.4
 }
