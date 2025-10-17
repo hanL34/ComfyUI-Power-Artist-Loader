@@ -1,4 +1,4 @@
-// Artist Manager - 紧凑布局 + 拖拽排序
+// Artist Manager - 修复版：支持多行keywords + CSV同步
 // 放置: web/js/artist-manager-enhanced.js
 
 (function() {
@@ -212,13 +212,100 @@
         console.log('✅ Artist Manager Enhanced 已加载');
     }
     
+    // 保存数据到后端 CSV
+    async function saveToBackend() {
+        try {
+            const tbody = document.querySelector('.artist-table tbody');
+            if (!tbody) {
+                console.warn('⚠️ 未找到表格 tbody');
+                return { success: false, error: '未找到表格' };
+            }
+            
+            const rows = tbody.querySelectorAll('tr');
+            const artists = [];
+            
+            rows.forEach((row, index) => {
+                const nameInput = row.querySelector('td:nth-child(2) input');
+                const keywordsInput = row.querySelector('td:nth-child(3) input');
+                const imageInput = row.querySelector('td:nth-child(4) input');
+                
+                if (nameInput && keywordsInput && imageInput) {
+                    const name = nameInput.value.trim();
+                    if (name) {
+                        const keywordsValue = keywordsInput.value;
+                        
+                        artists.push({
+                            name: name,
+                            keywords: keywordsValue,
+                            image: imageInput.value.trim()
+                        });
+                        
+                        console.log(`行 ${index + 1}: ${name} - Keywords length: ${keywordsValue.length}`);
+                    }
+                }
+            });
+            
+            console.log(`📤 准备保存 ${artists.length} 个画师到 CSV`);
+            
+            const response = await fetch('/power_artist_loader/csv/save', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ artists: artists })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log('✅ 成功保存到 CSV:', result.message);
+                return { success: true, message: result.message };
+            } else {
+                console.error('❌ 保存失败:', result.error);
+                return { success: false, error: result.error };
+            }
+        } catch (error) {
+            console.error('❌ 保存出错:', error);
+            return { success: false, error: error.message };
+        }
+    }
+    
+    // 显示通知
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'};
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 10001;
+            font-size: 14px;
+        `;
+        notification.textContent = message;
+        
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.remove(), 2000);
+    }
+    
     // 创建模态框
-    function createModal(artistName, keywords, onSave) {
+    function createModal(artistName, keywords, rowElement) {
         const existing = document.querySelector('.keywords-modal-overlay');
         if (existing) existing.remove();
         
         const overlay = document.createElement('div');
         overlay.className = 'keywords-modal-overlay';
+        
+        const escapedKeywords = keywords
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+        
         overlay.innerHTML = `
             <div class="keywords-modal">
                 <div class="keywords-modal-header">
@@ -226,7 +313,7 @@
                     <button class="keywords-modal-close">×</button>
                 </div>
                 <div class="keywords-modal-body">
-                    <textarea class="keywords-modal-textarea" placeholder="输入关键词，支持换行...">${keywords}</textarea>
+                    <textarea class="keywords-modal-textarea" placeholder="输入关键词，支持换行...">${escapedKeywords}</textarea>
                 </div>
                 <div class="keywords-modal-footer">
                     <button class="keywords-modal-btn keywords-modal-btn-cancel">取消</button>
@@ -253,9 +340,35 @@
         
         overlay.querySelector('.keywords-modal-close').addEventListener('click', close);
         overlay.querySelector('.keywords-modal-btn-cancel').addEventListener('click', close);
-        overlay.querySelector('.keywords-modal-btn-save').addEventListener('click', () => {
-            onSave(textarea.value);
+        
+        // 保存按钮 - 直接更新DOM并保存
+        overlay.querySelector('.keywords-modal-btn-save').addEventListener('click', async () => {
+            const newKeywords = textarea.value;
+            
+            console.log('🔵 保存 Keywords:', {
+                artist: artistName,
+                length: newKeywords.length,
+                preview: newKeywords.substring(0, 50)
+            });
+            
+            // 直接更新对应行的 input
+            const keywordsInput = rowElement.querySelector('td:nth-child(3) input');
+            if (keywordsInput) {
+                keywordsInput.value = newKeywords;
+                console.log('✅ 更新 DOM input 值');
+            }
+            
             close();
+            
+            // 延迟保存
+            setTimeout(async () => {
+                const result = await saveToBackend();
+                if (result.success) {
+                    showNotification('保存成功', 'success');
+                } else {
+                    showNotification('保存失败', 'error');
+                }
+            }, 100);
         });
         
         const escHandler = (e) => {
@@ -267,38 +380,6 @@
         document.addEventListener('keydown', escHandler);
         
         modal.addEventListener('click', (e) => e.stopPropagation());
-    }
-    
-    // 从DOM读取当前顺序并同步到React
-    function syncDOMOrderToReact(tbody) {
-        const rows = tbody.querySelectorAll('tr');
-        const newOrder = [];
-        
-        rows.forEach(row => {
-            const nameInput = row.querySelector('td:nth-child(2) input');
-            const keywordsInput = row.querySelector('td:nth-child(3) input');
-            const imageInput = row.querySelector('td:nth-child(4) input');
-            
-            if (nameInput && keywordsInput && imageInput) {
-                newOrder.push({
-                    name: nameInput.value,
-                    keywords: keywordsInput.value,
-                    image: imageInput.value
-                });
-            }
-        });
-        
-        // 存储到tbody的dataset中，供React读取
-        if (newOrder.length > 0) {
-            tbody.dataset.reactOrder = JSON.stringify(newOrder);
-            
-            // 触发React的change事件
-            const firstInput = tbody.querySelector('input');
-            if (firstInput) {
-                firstInput.dispatchEvent(new Event('input', { bubbles: true }));
-                firstInput.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-        }
     }
     
     // 拖拽排序功能
@@ -322,12 +403,10 @@
             const row = e.target.closest('tr');
             if (!row || !row.parentElement.matches('.artist-table tbody') || row === draggedRow) return;
             
-            // 移除所有高亮
             document.querySelectorAll('.artist-table tbody tr').forEach(r => {
                 r.classList.remove('drag-over', 'drag-over-bottom');
             });
             
-            // 计算鼠标位置
             const rect = row.getBoundingClientRect();
             const midpoint = rect.top + rect.height / 2;
             
@@ -347,7 +426,7 @@
             }
         }
         
-        function handleDrop(e) {
+        async function handleDrop(e) {
             if (e.stopPropagation) e.stopPropagation();
             
             const targetRow = e.target.closest('tr');
@@ -363,11 +442,16 @@
                 tbody.insertBefore(draggedRow, targetRow.nextSibling);
             }
             
-            // 更新序号
             updateRowNumbers(tbody);
             
-            // 同步顺序到React
-            syncDOMOrderToReact(tbody);
+            console.log('🔄 拖拽完成，保存新顺序');
+            
+            setTimeout(async () => {
+                const result = await saveToBackend();
+                if (result.success) {
+                    showNotification('顺序已保存', 'success');
+                }
+            }, 100);
             
             return false;
         }
@@ -391,7 +475,6 @@
             });
         }
         
-        // 监听表格变化，为新行添加拖拽
         const observer = new MutationObserver(() => {
             const rows = document.querySelectorAll('.artist-table tbody tr');
             rows.forEach(row => {
@@ -428,12 +511,14 @@
                     const row = cell.closest('tr');
                     const nameInput = row.querySelector('td:nth-child(2) input');
                     const artistName = nameInput ? nameInput.value : 'Unknown';
+                    const currentKeywords = input.value;
                     
-                    createModal(artistName, input.value, (newValue) => {
-                        input.value = newValue;
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        input.dispatchEvent(new Event('change', { bubbles: true }));
+                    console.log('📝 打开编辑器:', {
+                        artist: artistName,
+                        keywords: currentKeywords.substring(0, 50)
                     });
+                    
+                    createModal(artistName, currentKeywords, row);
                 };
                 
                 input.addEventListener('click', openEditor);
@@ -449,7 +534,7 @@
         injectStyles();
         initDragSort();
         attachKeywordsEditor();
-        console.log('✅ Artist Manager 功能已启用：紧凑布局 + 拖拽排序 + 模态框编辑');
+        console.log('✅ Artist Manager 功能已启用');
     }
     
     if (document.readyState === 'loading') {

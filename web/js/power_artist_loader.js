@@ -2,23 +2,26 @@
 import { app } from "/scripts/app.js";
 import { api } from "/scripts/api.js";
 
-let ARTISTS_DATA = []; 
-let ARTISTS_LIST = ["None"];
+// 直接使用 window 对象作为唯一数据源
+window.ARTISTS_DATA = window.ARTISTS_DATA || [];
+window.ARTISTS_LIST = window.ARTISTS_LIST || ["None"];
 
 // 通过API加载CSV数据
 async function loadArtistsFromCSV() {
     try {
-        const response = await api.fetchApi("/power_artist_loader/artists");
+        // 添加时间戳避免缓存
+        const timestamp = Date.now();
+        const response = await api.fetchApi(`/power_artist_loader/artists?t=${timestamp}`);
         if (!response.ok) {
             console.warn('Could not load artists data via API, using defaults');
             return loadDefaultArtists();
         }
         
         const data = await response.json();
-        ARTISTS_DATA = data.artists || [];
-        ARTISTS_LIST = ["None", ...ARTISTS_DATA.map(a => a.name)];
-        
-        console.log(`Loaded ${ARTISTS_DATA.length} artists from API`);
+        // 直接更新 window 对象
+        window.ARTISTS_DATA = data.artists || [];
+        window.ARTISTS_LIST = ["None", ...window.ARTISTS_DATA.map(a => a.name)];
+        console.log(`Loaded ${window.ARTISTS_DATA.length} artists from API`);
     } catch (error) {
         console.error('Error loading artists:', error);
         loadDefaultArtists();
@@ -30,6 +33,7 @@ async function refreshArtists() {
     await loadArtistsFromCSV();
     console.log('Artists data refreshed');
 }
+window.refreshArtists = refreshArtists;
 
 // 监听页面可见性变化，自动刷新
 document.addEventListener('visibilitychange', () => {
@@ -39,16 +43,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 function loadDefaultArtists() {
-    ARTISTS_DATA = [
+    window.ARTISTS_DATA = [
         { name: "Akira Toriyama", keywords: "akira toriyama style, anime, dragon ball", image: "toriyama.jpg" },
         { name: "Greg Rutkowski", keywords: "greg rutkowski, artstation, fantasy art", image: "rutkowski.jpg" },
         { name: "Hayao Miyazaki", keywords: "hayao miyazaki, studio ghibli, anime film", image: "miyazaki.jpg" }
     ];
-    ARTISTS_LIST = ["None", ...ARTISTS_DATA.map(a => a.name)];
+    window.ARTISTS_LIST = ["None", ...window.ARTISTS_DATA.map(a => a.name)];
 }
 
 function getArtistData(name) {
-    return ARTISTS_DATA.find(artist => artist.name === name);
+    return window.ARTISTS_DATA.find(artist => artist.name === name);
 }
 
 // 预览系统 - 优化版
@@ -113,7 +117,9 @@ class PreviewImage {
         });
         
         const img = document.createElement('img');
-        const imgSrc = `/power_artist_loader/preview/${artistData.image}`;
+        // 添加时间戳避免缓存
+        const timestamp = Date.now();
+        const imgSrc = `/power_artist_loader/preview/${artistData.image}?t=${timestamp}`;
         
         img.style.cssText = `
             max-width: 260px;
@@ -703,7 +709,7 @@ class PowerArtistWidget extends RgthreeBaseWidget {
     }
     
     showArtistMenu(event, node) {
-        const menu = ARTISTS_LIST.map(artist => ({
+        const menu = window.ARTISTS_LIST.map(artist => ({
             content: artist === this.value.artist ? `● ${artist}` : artist,
             callback: () => {
                 this.value.artist = artist;
@@ -724,7 +730,7 @@ class PowerArtistWidget extends RgthreeBaseWidget {
             const menuItems = contextMenu.root.querySelectorAll('.litemenu-entry');
             
             menuItems.forEach((item, index) => {
-                const artistName = ARTISTS_LIST[index];
+                const artistName = window.ARTISTS_LIST[index];
                 
                 if (!artistName || artistName === "None") return;
                 
@@ -1095,7 +1101,7 @@ app.registerExtension({
                 // 添加按钮 - 修改回调逻辑
                 this.widgets.push(new RgthreeButtonWidget("➕ Add Artist", (event, pos, node) => {
                     // 先弹出菜单选择画师
-                    const menu = ARTISTS_LIST.map(artist => ({
+                    const menu = window.ARTISTS_LIST.map(artist => ({
                         content: artist,
                         callback: () => {
                             // 选择后创建新的 widget 并设置画师
@@ -1121,7 +1127,7 @@ app.registerExtension({
                         const menuItems = contextMenu.root.querySelectorAll('.litemenu-entry');
                         
                         menuItems.forEach((item, index) => {
-                            const artistName = ARTISTS_LIST[index];
+                            const artistName = window.ARTISTS_LIST[index];
                             
                             if (!artistName || artistName === "None") return;
                             
