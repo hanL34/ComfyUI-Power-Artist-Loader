@@ -4,9 +4,12 @@
 
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Compatible-green.svg)
+
 节点介绍
 
 https://github.com/user-attachments/assets/585ec4e1-3a5d-47f7-b8c0-93a65052291b
+
+管理器介绍
 
 https://github.com/user-attachments/assets/d3fee3e2-7e16-4b09-b125-67ece43403a1
 
