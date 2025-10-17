@@ -18,6 +18,10 @@
 4. 右键菜单去掉strength0.5等3个低频使用功能项
 5. 修改权重范围为-1.00-3.00，可使用负权重
 
+https://github.com/user-attachments/assets/deca7210-4b95-4f26-8034-a2cdc4359b3b
+
+https://github.com/user-attachments/assets/e5527299-18f2-43ff-a37c-d9d53f81c18b
+
 ## 特性
 
 ### 核心功能
