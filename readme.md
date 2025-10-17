@@ -5,6 +5,12 @@
 ![GitHub License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![ComfyUI](https://img.shields.io/badge/ComfyUI-Compatible-green.svg)
 
+## 更新功能2025-10-17
+1. 新增右键Artist manager功能，可在界面添加删除和拖拽词条，点击保存后即时同步到本地CSV文件
+2. 新增Artist manager撤销功能，最大可撤销20步操作
+3. 优化预览图片实时同步功能，本地image文件夹添加对应Artist名称的图片后，节点能即时预览
+4. 修复节点的网页缓存逻辑，现更新CSV或本地图片后，不会再显示旧的内容
+
 ## 更新功能2025-10-09
 1. 修复刷新后节点重置，现在会保留上一次的设置状态
 2. 新增权重左右拖动改变数值的功能
