@@ -28,7 +28,7 @@ Documentation = "https://github.com/hanL34/ComfyUI-Power-Artist-Loader/wiki"
 "Bug Tracker" = "https://github.com/hanL34/ComfyUI-Power-Artist-Loader/issues"
 
 [tool.comfy]
-PublisherId = ""
+PublisherId = "hanl34"
 DisplayName = "ComfyUI-Power-Artist-Loader"
 Icon = ""
 includes = [] 
