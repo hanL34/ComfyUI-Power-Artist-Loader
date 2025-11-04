@@ -8,7 +8,7 @@ from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS']
 
 # 版本信息
-__version__ = "1.0.0"
+__version__ = "1.0.5"
 __author__ = "hanL"
 __description__ = "Power Artist Loader for ComfyUI - Load multiple artists into prompt text"
 
