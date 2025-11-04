@@ -1,4 +1,4 @@
-// Artist Manager - 修复版：支持多行keywords + CSV同步
+// Artist Manager - 修复版：支持多行keywords + CSV同步 + 拖拽修复 + 窗口拖动
 // 放置: web/js/artist-manager-enhanced.js
 
 (function() {
@@ -32,13 +32,24 @@
                 vertical-align: middle !important;
             }
             
-            .artist-table input[type="text"] {
+            /* ⭐ 关键修复：所有输入框和文本区域完全禁用拖拽 */
+            .artist-table input[type="text"],
+            .artist-table textarea {
                 width: 100% !important;
                 padding: 4px 6px !important;
-                height: 28px !important;
                 font-size: 13px !important;
                 box-sizing: border-box !important;
                 margin: 0 !important;
+                user-select: text !important;
+                -webkit-user-drag: none !important;
+                -webkit-user-select: text !important;
+                -moz-user-select: text !important;
+                -ms-user-select: text !important;
+                pointer-events: auto !important;
+            }
+            
+            .artist-table input[type="text"] {
+                height: 28px !important;
             }
             
             .artist-table td:nth-child(3) input {
@@ -52,16 +63,24 @@
                 border-bottom: 1px solid #333 !important;
             }
             
-            /* 拖拽相关样式 */
+            /* 拖拽相关样式 - 只应用于序号列 */
             .artist-table td:nth-child(1) {
                 cursor: grab !important;
                 user-select: none !important;
+                -webkit-user-select: none !important;
                 text-align: center !important;
                 color: #888 !important;
             }
             
             .artist-table td:nth-child(1):active {
                 cursor: grabbing !important;
+            }
+            
+            /* ⭐ 其他列明确禁用拖拽 */
+            .artist-table td:not(:nth-child(1)) {
+                cursor: default !important;
+                user-select: text !important;
+                -webkit-user-select: text !important;
             }
             
             .artist-table tbody tr.dragging {
@@ -132,12 +151,6 @@
                 color: #999;
                 font-size: 22px;
                 cursor: pointer;
-                padding: 0;
-                width: 28px;
-                height: 28px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
                 transition: color 0.2s;
             }
             
@@ -162,13 +175,12 @@
                 padding: 12px;
                 resize: vertical;
                 line-height: 1.5;
-                transition: border-color 0.2s;
+                box-sizing: border-box;
             }
             
             .keywords-modal-textarea:focus {
                 outline: none;
                 border-color: #4caf50;
-                box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
             }
             
             .keywords-modal-footer {
@@ -229,43 +241,29 @@
                 const keywordsInput = row.querySelector('td:nth-child(3) input');
                 const imageInput = row.querySelector('td:nth-child(4) input');
                 
-                if (nameInput && keywordsInput && imageInput) {
-                    const name = nameInput.value.trim();
-                    if (name) {
-                        const keywordsValue = keywordsInput.value;
-                        
-                        artists.push({
-                            name: name,
-                            keywords: keywordsValue,
-                            image: imageInput.value.trim()
-                        });
-                        
-                        console.log(`行 ${index + 1}: ${name} - Keywords length: ${keywordsValue.length}`);
-                    }
+                const name = nameInput ? nameInput.value.trim() : '';
+                const keywords = keywordsInput ? keywordsInput.value.trim() : '';
+                const image = imageInput ? imageInput.value.trim() : '';
+                
+                if (name) {
+                    artists.push({ name, keywords, image });
                 }
             });
             
-            console.log(`📤 准备保存 ${artists.length} 个画师到 CSV`);
+            console.log('💾 保存数据到后端:', { count: artists.length });
             
             const response = await fetch('/power_artist_loader/csv/save', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ artists: artists })
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ artists })
             });
             
             const result = await response.json();
+            console.log('📥 后端响应:', result);
             
-            if (result.success) {
-                console.log('✅ 成功保存到 CSV:', result.message);
-                return { success: true, message: result.message };
-            } else {
-                console.error('❌ 保存失败:', result.error);
-                return { success: false, error: result.error };
-            }
+            return result;
         } catch (error) {
-            console.error('❌ 保存出错:', error);
+            console.error('❌ 保存失败:', error);
             return { success: false, error: error.message };
         }
     }
@@ -277,69 +275,63 @@
             position: fixed;
             top: 20px;
             right: 20px;
+            padding: 12px 20px;
             background: ${type === 'success' ? '#4caf50' : type === 'error' ? '#f44336' : '#2196f3'};
             color: white;
-            padding: 12px 24px;
             border-radius: 4px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
             z-index: 10001;
+            animation: slideIn 0.3s ease;
             font-size: 14px;
         `;
         notification.textContent = message;
-        
         document.body.appendChild(notification);
         
-        setTimeout(() => notification.remove(), 2000);
+        setTimeout(() => {
+            notification.style.animation = 'slideOut 0.3s ease';
+            setTimeout(() => notification.remove(), 300);
+        }, 2500);
     }
     
     // 创建模态框
-    function createModal(artistName, keywords, rowElement) {
-        const existing = document.querySelector('.keywords-modal-overlay');
-        if (existing) existing.remove();
-        
+    function createModal(artistName, initialKeywords, rowElement) {
         const overlay = document.createElement('div');
         overlay.className = 'keywords-modal-overlay';
         
-        const escapedKeywords = keywords
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;');
+        const modal = document.createElement('div');
+        modal.className = 'keywords-modal';
         
-        overlay.innerHTML = `
-            <div class="keywords-modal">
-                <div class="keywords-modal-header">
-                    <div class="keywords-modal-title">编辑 Keywords - ${artistName}</div>
-                    <button class="keywords-modal-close">×</button>
-                </div>
-                <div class="keywords-modal-body">
-                    <textarea class="keywords-modal-textarea" placeholder="输入关键词，支持换行...">${escapedKeywords}</textarea>
-                </div>
-                <div class="keywords-modal-footer">
-                    <button class="keywords-modal-btn keywords-modal-btn-cancel">取消</button>
-                    <button class="keywords-modal-btn keywords-modal-btn-save">保存</button>
-                </div>
+        modal.innerHTML = `
+            <div class="keywords-modal-header">
+                <div class="keywords-modal-title">✏️ Edit Keywords - ${artistName}</div>
+                <button class="keywords-modal-close" title="Close (ESC)">×</button>
+            </div>
+            <div class="keywords-modal-body">
+                <textarea class="keywords-modal-textarea" placeholder="Enter keywords here...">${initialKeywords}</textarea>
+            </div>
+            <div class="keywords-modal-footer">
+                <button class="keywords-modal-btn keywords-modal-btn-cancel">Cancel</button>
+                <button class="keywords-modal-btn keywords-modal-btn-save">💾 Save</button>
             </div>
         `;
         
+        overlay.appendChild(modal);
         document.body.appendChild(overlay);
         
-        const textarea = overlay.querySelector('.keywords-modal-textarea');
-        const modal = overlay.querySelector('.keywords-modal');
+        const textarea = modal.querySelector('.keywords-modal-textarea');
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
         
-        setTimeout(() => {
-            textarea.focus();
-            textarea.setSelectionRange(textarea.value.length, textarea.value.length);
-        }, 100);
-        
-        const close = () => overlay.remove();
-        
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) close();
-        });
+        const close = () => {
+            overlay.style.animation = 'fadeOut 0.2s';
+            setTimeout(() => overlay.remove(), 200);
+        };
         
         overlay.querySelector('.keywords-modal-close').addEventListener('click', close);
         overlay.querySelector('.keywords-modal-btn-cancel').addEventListener('click', close);
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
         
         // 保存按钮 - 直接更新DOM并保存
         overlay.querySelector('.keywords-modal-btn-save').addEventListener('click', async () => {
@@ -387,8 +379,18 @@
         let draggedRow = null;
         
         function handleDragStart(e) {
-            const row = e.target.closest('tr');
-            if (!row || !row.parentElement.matches('.artist-table tbody')) return;
+            // ⭐ 修复1: 只允许从序号列开始拖拽，明确检查触发元素
+            const td = e.target.closest('td');
+            if (!td || !td.matches('td:nth-child(1)')) {
+                e.preventDefault();
+                return false;
+            }
+            
+            const row = td.closest('tr');
+            if (!row || !row.parentElement.matches('.artist-table tbody')) {
+                e.preventDefault();
+                return;
+            }
             
             draggedRow = row;
             row.classList.add('dragging');
@@ -481,28 +483,54 @@
                 if (row.dataset.dragEnabled) return;
                 row.dataset.dragEnabled = 'true';
                 
-                // ⭐ 关键修复：只有序号列可拖动
+                // ⭐ 关键修复1：行本身不可拖动
                 row.draggable = false;
+                row.setAttribute('draggable', 'false');
                 
                 // 只在序号列上设置拖动手柄和事件
                 const dragHandle = row.querySelector('td:nth-child(1)');
                 if (dragHandle) {
                     dragHandle.draggable = true;
+                    dragHandle.setAttribute('draggable', 'true');
                     dragHandle.style.cursor = 'grab';
                     
                     // ⭐ 只在序号列绑定dragstart事件
                     dragHandle.addEventListener('dragstart', handleDragStart);
                 }
                 
-                // 其他列禁用拖动，允许文本选择
+                // ⭐ 关键修复1：其他列完全禁用拖动，允许文本选择
                 const otherCells = row.querySelectorAll('td:not(:nth-child(1))');
                 otherCells.forEach(cell => {
                     cell.draggable = false;
+                    cell.setAttribute('draggable', 'false');
                     cell.style.userSelect = 'text';
-                    const input = cell.querySelector('input');
-                    if (input) {
+                    cell.style.webkitUserSelect = 'text';
+                    cell.style.cursor = 'text';
+                    
+                    // ⭐ 输入框也要明确禁用拖动，允许文本选择
+                    const inputs = cell.querySelectorAll('input, textarea');
+                    inputs.forEach(input => {
                         input.draggable = false;
-                    }
+                        input.setAttribute('draggable', 'false');
+                        input.style.userSelect = 'text';
+                        input.style.webkitUserSelect = 'text';
+                        input.style.webkitUserDrag = 'none';
+                        input.style.cursor = 'text';
+                        
+                        // ⭐ 阻止输入框上的所有拖拽事件
+                        ['dragstart', 'drag', 'dragenter', 'dragleave'].forEach(eventName => {
+                            input.addEventListener(eventName, (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                return false;
+                            }, true);
+                        });
+                        
+                        // ⭐ 允许文本选择，防止mousedown被拦截
+                        input.addEventListener('mousedown', (e) => {
+                            e.stopPropagation();
+                        }, true);
+                    });
                 });
                 
                 // 其他拖动事件仍绑定在行上（用于drop target）
@@ -552,12 +580,89 @@
         observer.observe(document.body, { childList: true, subtree: true });
     }
     
+    // ⭐ 修复2: 窗口拖动功能
+    function initWindowDrag() {
+        const observer = new MutationObserver(() => {
+            const managerWindow = document.getElementById('artist-manager-window');
+            if (!managerWindow || managerWindow.dataset.dragInitialized) return;
+            
+            managerWindow.dataset.dragInitialized = 'true';
+            
+            const header = managerWindow.querySelector('div[style*="padding: 15px 20px"]');
+            if (!header) return;
+            
+            // 设置标题栏可以拖动
+            header.style.cursor = 'move';
+            header.style.userSelect = 'none';
+            
+            let isDragging = false;
+            let startX, startY, initialX, initialY;
+            
+            function startDrag(e) {
+                // 只在空白区域或标题文字上允许拖动，按钮区域不触发
+                const target = e.target;
+                if (target.tagName === 'BUTTON' || target.closest('button')) {
+                    return;
+                }
+                
+                isDragging = true;
+                
+                // 获取当前窗口位置
+                const rect = managerWindow.getBoundingClientRect();
+                initialX = rect.left;
+                initialY = rect.top;
+                
+                startX = e.clientX;
+                startY = e.clientY;
+                
+                // 禁用transform，使用fixed定位
+                managerWindow.style.transform = 'none';
+                managerWindow.style.left = initialX + 'px';
+                managerWindow.style.top = initialY + 'px';
+                
+                header.style.cursor = 'grabbing';
+                e.preventDefault();
+            }
+            
+            function drag(e) {
+                if (!isDragging) return;
+                
+                const deltaX = e.clientX - startX;
+                const deltaY = e.clientY - startY;
+                
+                const newX = initialX + deltaX;
+                const newY = initialY + deltaY;
+                
+                managerWindow.style.left = newX + 'px';
+                managerWindow.style.top = newY + 'px';
+                
+                e.preventDefault();
+            }
+            
+            function stopDrag() {
+                if (!isDragging) return;
+                
+                isDragging = false;
+                header.style.cursor = 'move';
+            }
+            
+            header.addEventListener('mousedown', startDrag);
+            document.addEventListener('mousemove', drag);
+            document.addEventListener('mouseup', stopDrag);
+            
+            console.log('✅ 窗口拖动功能已启用');
+        });
+        
+        observer.observe(document.body, { childList: true, subtree: true });
+    }
+    
     // 初始化
     function init() {
         injectStyles();
         initDragSort();
         attachKeywordsEditor();
-        console.log('✅ Artist Manager 功能已启用');
+        initWindowDrag(); // ⭐ 添加窗口拖动初始化
+        console.log('✅ Artist Manager 功能已启用（包含窗口拖动）');
     }
     
     if (document.readyState === 'loading') {
