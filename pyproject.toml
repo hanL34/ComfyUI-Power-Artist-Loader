@@ -1,7 +1,7 @@
 [project]
 name = "power-artist-loader"
 description = "A custom node designed for ComfyUI that can load multiple artist names simultaneously and intelligently combine them into the prompt, with support for independent weight control and real-time preview."
-version = "1.0.5"
+version = "1.0.6"
 license = {file = "LICENSE"} 
 # classifiers = [
 #     # For OS-independent nodes (works on all operating systems)
