@@ -319,17 +319,24 @@ function createManagerWindow() {
                     console.warn('⚠️ window.refreshArtists 函数不存在');
                 }
                 
-                // 方法3：强制刷新所有 PowerArtistLoader 节点的下拉列表
-                if (app && app.graph && app.graph._nodes) {
-                    console.log('🔄 强制刷新所有节点...');
-                    const nodes = app.graph._nodes.filter(n => n.type === "PowerArtistLoader");
-                    nodes.forEach(node => {
-                        if (node.widgets) {
-                            // 触发节点重绘
-                            node.setDirtyCanvas(true, true);
-                        }
-                    });
-                    console.log(`✅ 已刷新 ${nodes.length} 个 PowerArtistLoader 节点`);
+                // ⭐ 方法3：调用refreshAllNodes刷新所有节点输出
+                if (typeof window.refreshAllNodes === 'function') {
+                    console.log('🔄 调用 window.refreshAllNodes() 刷新节点输出');
+                    window.refreshAllNodes();
+                } else {
+                    console.warn('⚠️ window.refreshAllNodes 函数不存在，使用fallback');
+                    // fallback：手动触发节点刷新
+                    if (app && app.graph && app.graph._nodes) {
+                        console.log('🔄 强制刷新所有节点...');
+                        const nodes = app.graph._nodes.filter(n => n.type === "PowerArtistLoader");
+                        nodes.forEach(node => {
+                            if (node.widgets) {
+                                // 触发节点重绘
+                                node.setDirtyCanvas(true, true);
+                            }
+                        });
+                        console.log(`✅ 已刷新 ${nodes.length} 个 PowerArtistLoader 节点`);
+                    }
                 }
             } else {
                 console.warn('⚠️ 服务器返回的数据中没有 artists 字段');
@@ -701,9 +708,11 @@ window.editKeywords = function(input, artistName) {
         // 保存完整内容（多行）
         input.dataset.fullKeywords = newKeywords;
         
-        // 标记有未保存变更
+        // ⭐ 标记有未保存变更
         const event = new CustomEvent('artist-changed');
         document.dispatchEvent(event);
+        
+        console.log('✏️ Keywords已编辑，等待点击保存按钮更新到CSV和节点');
         
         close();
     };

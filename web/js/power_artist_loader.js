@@ -32,8 +32,26 @@ async function loadArtistsFromCSV() {
 async function refreshArtists() {
     await loadArtistsFromCSV();
     console.log('Artists data refreshed');
+    
+    // ⭐ 触发所有PowerArtistLoader节点刷新
+    refreshAllNodes();
 }
 window.refreshArtists = refreshArtists;
+
+// ⭐ 新增：刷新所有节点的函数
+function refreshAllNodes() {
+    if (!app.graph) return;
+    
+    const nodes = app.graph._nodes || [];
+    nodes.forEach(node => {
+        if (node.type === "PowerArtistLoader") {
+            // 标记节点为脏状态，触发重新执行
+            node.setDirtyCanvas(true, true);
+            console.log(`🔄 刷新节点 #${node.id}`);
+        }
+    });
+}
+window.refreshAllNodes = refreshAllNodes;
 
 // 监听页面可见性变化，自动刷新
 document.addEventListener('visibilitychange', () => {

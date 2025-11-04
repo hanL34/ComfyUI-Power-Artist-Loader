@@ -481,8 +481,31 @@
                 if (row.dataset.dragEnabled) return;
                 row.dataset.dragEnabled = 'true';
                 
-                row.draggable = true;
-                row.addEventListener('dragstart', handleDragStart);
+                // ⭐ 关键修复：只有序号列可拖动
+                row.draggable = false;
+                
+                // 只在序号列上设置拖动手柄和事件
+                const dragHandle = row.querySelector('td:nth-child(1)');
+                if (dragHandle) {
+                    dragHandle.draggable = true;
+                    dragHandle.style.cursor = 'grab';
+                    
+                    // ⭐ 只在序号列绑定dragstart事件
+                    dragHandle.addEventListener('dragstart', handleDragStart);
+                }
+                
+                // 其他列禁用拖动，允许文本选择
+                const otherCells = row.querySelectorAll('td:not(:nth-child(1))');
+                otherCells.forEach(cell => {
+                    cell.draggable = false;
+                    cell.style.userSelect = 'text';
+                    const input = cell.querySelector('input');
+                    if (input) {
+                        input.draggable = false;
+                    }
+                });
+                
+                // 其他拖动事件仍绑定在行上（用于drop target）
                 row.addEventListener('dragover', handleDragOver);
                 row.addEventListener('dragleave', handleDragLeave);
                 row.addEventListener('drop', handleDrop);
