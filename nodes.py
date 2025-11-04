@@ -100,6 +100,9 @@ class PowerArtistLoader:
     def load_artists(self, text="", prompt=None, extra_pnginfo=None, unique_id=None):
         """处理画师加载逻辑，输出keywords"""
         
+        # ⭐ 关键修复：每次执行前重新加载CSV，确保获取最新数据
+        self.load_artists_data()
+        
         enabled_keywords = []
         
         if prompt and unique_id:
