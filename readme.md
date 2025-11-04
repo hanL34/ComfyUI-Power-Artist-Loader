@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/d3fee3e2-7e16-4b09-b125-67ece43403a1
 2. 修正了节点的预览keywords的无法同步的问题
 3. 修正了Artist manager右上方保存功能会重置修改的BUG
 4. 修复拖拽功能影响划词区域的问题，现在只会在最左的序号处显示抓手后触发拖拽功能
-5. 新增Artist manager界面可以拖动功能，方便观察对比工作流的内容
+5. 新增Artist manager界面可以移动功能，方便观察对比工作流的内容
 
 ## 版本更新2025-10-17
 1. 新增右键Artist manager功能，可在界面添加删除和拖拽词条，点击保存后即时同步到本地CSV文件
