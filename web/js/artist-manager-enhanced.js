@@ -311,7 +311,7 @@
             </div>
             <div class="keywords-modal-footer">
                 <button class="keywords-modal-btn keywords-modal-btn-cancel">Cancel</button>
-                <button class="keywords-modal-btn keywords-modal-btn-save">💾 Save</button>
+                <button class="keywords-modal-btn keywords-modal-btn-save">确定</button>
             </div>
         `;
         
@@ -333,11 +333,11 @@
             if (e.target === overlay) close();
         });
         
-        // 保存按钮 - 直接更新DOM并保存
+        // 确认按钮 - 只更新DOM,不保存到文件
         overlay.querySelector('.keywords-modal-btn-save').addEventListener('click', async () => {
             const newKeywords = textarea.value;
             
-            console.log('🔵 保存 Keywords:', {
+            console.log('✅ [编辑弹窗] Keywords已暂存到界面:', {
                 artist: artistName,
                 length: newKeywords.length,
                 preview: newKeywords.substring(0, 50)
@@ -346,21 +346,20 @@
             // 直接更新对应行的 input
             const keywordsInput = rowElement.querySelector('td:nth-child(3) input');
             if (keywordsInput) {
+                // ⭐ 关键修复:同时更新value和dataset.fullKeywords
                 keywordsInput.value = newKeywords;
-                console.log('✅ 更新 DOM input 值');
+                keywordsInput.dataset.fullKeywords = newKeywords;
+                console.log('📝 [编辑弹窗] 已更新DOM(value和dataset),需点击顶部【💾 保存】按钮才会写入CSV文件');
+            } else {
+                console.error('❌ [编辑弹窗] 未找到keywords input元素');
             }
             
-            close();
+            // 标记有未保存的变更
+            const event = new CustomEvent('artist-changed');
+            document.dispatchEvent(event);
+            console.log('🔔 [编辑弹窗] 已触发artist-changed事件');
             
-            // 延迟保存
-            setTimeout(async () => {
-                const result = await saveToBackend();
-                if (result.success) {
-                    showNotification('保存成功', 'success');
-                } else {
-                    showNotification('保存失败', 'error');
-                }
-            }, 100);
+            close();
         });
         
         const escHandler = (e) => {

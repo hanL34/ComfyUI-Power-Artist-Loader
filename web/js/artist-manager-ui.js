@@ -682,7 +682,7 @@ window.editKeywords = function(input, artistName) {
         </div>
         <div style="padding: 14px 18px; border-top: 1px solid #444; display: flex; justify-content: flex-end; gap: 10px;">
             <button id="modal-cancel" style="padding: 7px 18px; border: none; border-radius: 4px; background: #444; color: #ddd; cursor: pointer;">取消</button>
-            <button id="modal-save" style="padding: 7px 18px; border: none; border-radius: 4px; background: #4caf50; color: #fff; cursor: pointer;">确定</button>
+            <button id="modal-save" style="padding: 7px 18px; border: none; border-radius: 4px; background: #4caf50; color: #fff; cursor: pointer;">确认</button>
         </div>
     `;
     
