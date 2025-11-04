@@ -16,6 +16,12 @@ const ArtistManager: React.FC<ArtistManagerProps> = ({ api, onClose }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
+  
+  // ⭐ 添加拖动相关状态
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // 加载CSV数据
   const loadArtists = async () => {
@@ -81,6 +87,51 @@ const ArtistManager: React.FC<ArtistManagerProps> = ({ api, onClose }) => {
     setArtists(newArtists);
   };
 
+  // ⭐ 拖动处理函数 - 只在拖拽手柄上触发
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // 只允许在拖拽手柄上启动拖动
+    if (!(e.target as HTMLElement).classList.contains('drag-handle')) {
+      return;
+    }
+    
+    e.preventDefault(); // 防止文本选择
+    setIsDragging(true);
+    setDragStart({
+      x: e.clientX - position.x,
+      y: e.clientY - position.y
+    });
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging) return;
+    
+    const newX = e.clientX - dragStart.x;
+    const newY = e.clientY - dragStart.y;
+    
+    setPosition({ x: newX, y: newY });
+    
+    if (containerRef.current) {
+      containerRef.current.style.transform = `translate(${newX}px, ${newY}px)`;
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  // ⭐ 添加全局鼠标事件监听
+  useEffect(() => {
+    if (isDragging) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, dragStart, position]);
+
   useEffect(() => {
     loadArtists();
   }, []);
@@ -90,9 +141,22 @@ const ArtistManager: React.FC<ArtistManagerProps> = ({ api, onClose }) => {
   }
 
   return (
-    <div className="artist-manager">
-      <div className="artist-manager-header">
-        <h2>🎨 Artist Library Manager</h2>
+    <div 
+      ref={containerRef}
+      className="artist-manager"
+      style={{
+        cursor: isDragging ? 'grabbing' : 'default',
+        transition: isDragging ? 'none' : 'transform 0.2s ease'
+      }}
+    >
+      <div 
+        className="artist-manager-header"
+        onMouseDown={handleMouseDown}
+      >
+        <div className="header-left">
+          <span className="drag-handle" title="Drag to move">⠿</span>
+          <h2>🎨 Artist Library Manager</h2>
+        </div>
         <div className="artist-manager-actions">
           <button onClick={addArtist} className="btn btn-add">
             + Add Artist

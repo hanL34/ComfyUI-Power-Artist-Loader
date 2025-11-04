@@ -8,6 +8,7 @@
   background: #1e1e1e;
   color: #e0e0e0;
   overflow: hidden;
+  position: relative;
 }
 
 /* 头部区域 */
@@ -18,17 +19,50 @@
   margin-bottom: 16px;
   padding-bottom: 12px;
   border-bottom: 2px solid #333;
+  position: relative;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* ⭐ 拖拽手柄 */
+.drag-handle {
+  font-size: 20px;
+  color: #666;
+  cursor: grab;
+  user-select: none;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: all 0.2s;
+  line-height: 1;
+}
+
+.drag-handle:hover {
+  color: #4caf50;
+  background: rgba(76, 175, 80, 0.1);
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+  color: #45a049;
 }
 
 .artist-manager-header h2 {
   margin: 0;
   font-size: 20px;
   color: #4caf50;
+  position: relative;
+  z-index: 1;
 }
 
 .artist-manager-actions {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 1;
 }
 
 /* 按钮通用样式 */
@@ -224,7 +258,7 @@
   align-self: flex-start;
 }
 
-/* 输入框样式 */
+/* ⭐ 输入框样式 - 确保可以选择文本 */
 .input-field {
   width: 100%;
   padding: 8px;
@@ -236,6 +270,10 @@
   box-sizing: border-box;
   font-family: inherit;
   transition: all 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .input-field:focus {
@@ -259,7 +297,7 @@
   color: #555;
 }
 
-/* 文本域样式 */
+/* ⭐ 文本域样式 - 确保可以选择文本 */
 .textarea-field {
   width: 100%;
   min-height: 80px;
@@ -277,6 +315,10 @@
   word-wrap: break-word;
   line-height: 1.5;
   transition: all 0.2s ease;
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 .textarea-field:focus {
