@@ -60,6 +60,10 @@ document.addEventListener('visibilitychange', () => {
     }
 });
 
+api.addEventListener("power_artist_loader:updated", async () => {
+    await refreshArtists();
+});
+
 function loadDefaultArtists() {
     window.ARTISTS_DATA = [
         { name: "Akira Toriyama", keywords: "akira toriyama style, anime, dragon ball", image: "toriyama.jpg" },
@@ -1219,6 +1223,217 @@ app.registerExtension({
                         widget.value.strength = widgetData.strength !== undefined ? widgetData.strength : 1.0;
                     }
                 }
+            };
+        }
+    }
+});
+
+class ArtistMultiSelectPanel {
+    static overlay = null;
+    static listEl = null;
+    static inputEl = null;
+    static selected = new Set();
+    static dbArtists = [];
+    static currentPage = 1;
+    static pageSize = 100;
+    static filtered = [];
+    static dragging = false;
+    static dragDX = 0;
+    static dragDY = 0;
+    static dbNames() {
+        const arr = this.dbArtists || [];
+        return arr.map(a => a.name).filter(n => n);
+    }
+    static async ensureDb() {
+        try {
+            const t = Date.now();
+            const resp = await api.fetchApi(`/power_artist_loader/db/artists?t=${t}`);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            this.dbArtists = data.artists || [];
+        } catch (e) {
+            console.warn('Failed to load db artists.json', e);
+        }
+    }
+    static open(opts) {
+        if (this.overlay) return;
+        const initial = (opts.initial || "").split(",").map(s => s.trim()).filter(Boolean);
+        this.selected = new Set(initial);
+        this.currentPage = 1;
+        this.overlay = document.createElement('div');
+        this.overlay.style.cssText = 'position:fixed;left:0px;top:0px;z-index:10000;background:#1a1a1a;border:2px solid #4caf50;border-radius:8px;box-shadow:0 10px 40px rgba(0,0,0,0.9);width:480px;max-height:70vh;display:flex;flex-direction:column;';
+        const header = document.createElement('div');
+        header.style.cssText = 'padding:12px 16px;color:#fff;font-size:13px;background:#2a2a2a;border-bottom:1px solid #444;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;border-radius:8px 8px 0 0;';
+        const title = document.createElement('div');
+        title.textContent = opts.title || 'Select';
+        title.style.cssText = 'color:#4caf50;font-size:14px;font-weight:600;';
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Search name or alias';
+        input.style.cssText = 'flex:1;background:#2a2a2a;border:1px solid #444;color:#fff;border-radius:4px;padding:6px 8px;outline:none;';
+        const pageInfo = document.createElement('div');
+        pageInfo.style.cssText = 'color:#4caf50;font-size:12px;';
+        const btnPrev = document.createElement('button');
+        btnPrev.textContent = 'Prev';
+        btnPrev.style.cssText = 'background:#555;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px;';
+        const btnNext = document.createElement('button');
+        btnNext.textContent = 'Next';
+        btnNext.style.cssText = 'background:#555;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px;';
+        header.appendChild(title);
+        header.appendChild(input);
+        header.appendChild(btnPrev);
+        header.appendChild(btnNext);
+        header.appendChild(pageInfo);
+        const list = document.createElement('div');
+        list.style.cssText = 'overflow:auto;flex:1;padding:10px;display:flex;flex-direction:column;gap:8px;background:#1a1a1a;';
+        const footer = document.createElement('div');
+        footer.style.cssText = 'padding:10px;border-top:1px solid #444;display:flex;justify-content:flex-end;gap:10px;background:#2a2a2a;border-radius:0 0 8px 8px;';
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = 'Cancel';
+        btnCancel.style.cssText = 'background:#666;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px;';
+        const btnOk = document.createElement('button');
+        btnOk.textContent = 'OK';
+        btnOk.style.cssText = 'background:#4caf50;color:#fff;border:none;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:13px;font-weight:600;';
+        footer.appendChild(btnCancel);
+        footer.appendChild(btnOk);
+        this.overlay.appendChild(header);
+        this.overlay.appendChild(list);
+        this.overlay.appendChild(footer);
+        document.body.appendChild(this.overlay);
+        this.listEl = list;
+        this.inputEl = input;
+        const initLeft = Math.max(20, Math.floor((window.innerWidth - 420) / 2));
+        const initTop = Math.max(20, Math.floor((window.innerHeight - (window.innerHeight * 0.7)) / 2) + 60);
+        this.overlay.style.left = initLeft + 'px';
+        this.overlay.style.top = initTop + 'px';
+        const renderList = () => {
+            const names = this.filtered;
+            const totalPages = Math.max(1, Math.ceil(names.length / this.pageSize));
+            if (this.currentPage > totalPages) this.currentPage = totalPages;
+            const start = (this.currentPage - 1) * this.pageSize;
+            const end = start + this.pageSize;
+            const pageItems = names.slice(start, end);
+            pageInfo.textContent = `Page ${this.currentPage} / ${totalPages} (${names.length} items)`;
+            list.innerHTML = '';
+            for (const n of pageItems) {
+                const item = document.createElement('div');
+                item.style.cssText = 'display:flex;align-items:center;background:#2a2a2a;border:1px solid #3a3a3a;border-radius:4px;padding:8px 10px;gap:10px;';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = this.selected.has(n);
+                cb.addEventListener('change', () => {
+                    if (cb.checked) this.selected.add(n); else this.selected.delete(n);
+                });
+                const label = document.createElement('span');
+                label.textContent = n;
+                label.style.cssText = 'color:#fff;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+                item.appendChild(cb);
+                item.appendChild(label);
+                list.appendChild(item);
+            }
+        };
+        const updateFiltered = (query) => {
+            const names = this.dbNames();
+            let filtered = names;
+            if (query && query.trim()) {
+                const q = query.trim().toLowerCase();
+                filtered = names.filter(n => n.toLowerCase().includes(q));
+            }
+            this.filtered = filtered;
+            this.currentPage = 1;
+            renderList();
+        };
+        this.ensureDb().then(() => updateFiltered(''));
+        input.addEventListener('input', () => updateFiltered(input.value));
+        btnPrev.onclick = () => { if (this.currentPage > 1) { this.currentPage -= 1; renderList(); } };
+        btnNext.onclick = () => { const totalPages = Math.max(1, Math.ceil(this.filtered.length / this.pageSize)); if (this.currentPage < totalPages) { this.currentPage += 1; renderList(); } };
+        const onMove = (e) => {
+            if (!this.dragging) return;
+            const nx = e.clientX - this.dragDX;
+            const ny = e.clientY - this.dragDY;
+            const w = 420;
+            const maxX = Math.max(0, window.innerWidth - w - 20);
+            const maxY = Math.max(0, window.innerHeight - 80);
+            const clampedX = Math.max(0, Math.min(nx, maxX));
+            const clampedY = Math.max(0, Math.min(ny, maxY));
+            this.overlay.style.left = clampedX + 'px';
+            this.overlay.style.top = clampedY + 'px';
+        };
+        const onUp = () => {
+            this.dragging = false;
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+        };
+        header.addEventListener('pointerdown', (e) => {
+            this.dragging = true;
+            this.dragDX = e.clientX - this.overlay.offsetLeft;
+            this.dragDY = e.clientY - this.overlay.offsetTop;
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onUp);
+        });
+        window.addEventListener('keydown', (e) => { if (e.key === 'Escape') this.close(); }, { once: true });
+        btnCancel.onclick = () => this.close();
+        btnOk.onclick = () => {
+            const arr = Array.from(this.selected);
+            if (opts.onConfirm) opts.onConfirm(arr);
+            this.close();
+        };
+    }
+    static close() {
+        if (this.overlay && this.overlay.parentNode) this.overlay.parentNode.removeChild(this.overlay);
+        this.overlay = null;
+        this.listEl = null;
+        this.inputEl = null;
+        this.selected = new Set();
+        this.dragging = false;
+    }
+}
+
+app.registerExtension({
+    name: "Comfy.RandomArtistString.MultiSelect",
+    async init(app) {
+        // Load DB artists when ComfyUI initializes
+        await ArtistMultiSelectPanel.ensureDb();
+    },
+    async beforeRegisterNodeDef(nodeType, nodeData, app) {
+        if (nodeData.name === "RandomArtistString") {
+            const onNodeCreated = nodeType.prototype.onNodeCreated;
+            nodeType.prototype.onNodeCreated = function() {
+                if (onNodeCreated) onNodeCreated.apply(this, arguments);
+                if (!this.widgets) this.widgets = [];
+                const preWidget = this.widgets.find(w => w && w.name === 'preselectName');
+                const excWidget = this.widgets.find(w => w && w.name === 'excludeName');
+                const sepWidget = this.widgets.find(w => w && w.name === 'separator');
+                const modeWidget = this.widgets.find(w => w && w.name === 'mode');
+                const wminWidget = this.widgets.find(w => w && w.name === 'standardWeightMin');
+                const wmaxWidget = this.widgets.find(w => w && w.name === 'standardWeightMax');
+                const styleWidget = this.widgets.find(w => w && w.name === 'creativeBracketStyle');
+                // Fix null defaults migrated from old workflows
+                if (sepWidget && (!sepWidget.value || sepWidget.value === 'null' || sepWidget.value === 'None')) sepWidget.value = ',';
+                if (modeWidget && (!modeWidget.value || modeWidget.value === 'null')) modeWidget.value = 'Standard';
+                if (wminWidget && (wminWidget.value === null || wminWidget.value === undefined)) wminWidget.value = 0.5;
+                if (wmaxWidget && (wmaxWidget.value === null || wmaxWidget.value === undefined)) wmaxWidget.value = 1.5;
+                if (styleWidget && (!styleWidget.value || styleWidget.value === 'null')) styleWidget.value = 'paren';
+                const addPreBtn = new RgthreeButtonWidget('Pick Preselected', (event, pos, node) => {
+                    ArtistMultiSelectPanel.open({
+                        title: 'Pick Preselected',
+                        initial: preWidget ? (preWidget.value || '') : '',
+                        onConfirm: (names) => { if (preWidget) { preWidget.value = names.join(','); node.setDirtyCanvas(true, true); } }
+                    });
+                    return true;
+                });
+                const addExcBtn = new RgthreeButtonWidget('Pick Exclusions', (event, pos, node) => {
+                    ArtistMultiSelectPanel.open({
+                        title: 'Pick Exclusions',
+                        initial: excWidget ? (excWidget.value || '') : '',
+                        onConfirm: (names) => { if (excWidget) { excWidget.value = names.join(','); node.setDirtyCanvas(true, true); } }
+                    });
+                    return true;
+                });
+                this.widgets.push(addPreBtn);
+                this.widgets.push(addExcBtn);
+                this.size = [Math.max(this.size[0] || 320, 320), Math.max(this.size[1] || 140, this.computeSize()[1])];
+                this.setDirtyCanvas(true, true);
             };
         }
     }
