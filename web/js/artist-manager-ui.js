@@ -345,6 +345,7 @@ function createManagerWindow() {
             console.error('❌ 刷新节点下拉列表失败:', error);
         }
     }
+    window.powerArtistRefreshNodeDropdown = refreshNodeDropdown;
     
     // 显示通知
     function showNotification(message, type = 'info') {
@@ -723,6 +724,13 @@ app.registerExtension({
     name: "Comfy.PowerArtistManager",
     
     async setup() {
+        api.addEventListener("power_artist_loader:updated", async () => {
+            if (typeof window.powerArtistRefreshNodeDropdown === 'function') {
+                await window.powerArtistRefreshNodeDropdown();
+            } else if (typeof window.refreshArtists === 'function') {
+                await window.refreshArtists();
+            }
+        });
         // 监听变更事件
         document.addEventListener('artist-changed', () => {
             console.log('触发 artist-changed 事件');

@@ -1,0 +1,53 @@
+{
+  "PowerArtistLoader": {
+    "title": "画师加载器",
+    "widgets": {},
+    "outputs": {
+      "text": "字符串"
+    },
+    "description": "从本地 CSV 加载画师并输出组合关键词。"
+  },
+  "AddArtistToCSV": {
+    "title": "添加到CSV",
+    "widgets": {
+      "name": "主名称",
+      "keywords": "关键词",
+      "image": "图像",
+      "overwrite": "覆盖同名"
+    },
+    "outputs": {
+      "result": "结果"
+    },
+    "description": "将输入写入 artists.csv 并复制图像到 images 目录，支持覆盖同名。"
+  },
+  "RandomArtistString": {
+    "title": "生成随机画师串",
+    "widgets": {
+      "preselectName": "预选名称",
+      "excludeName": "排除名称",
+      "targetCount": "目标数量",
+      "mode": "模式",
+      "Standard": "标准模式",
+      "Weighted": "权重模式",
+      "Bracket": "括号模式",
+      "standardWeightMin": "权重下限",
+      "standardWeightMax": "权重上限",
+      "creativeBracketStyle": "括号样式",
+      "paren": "圆括号 ()",
+      "curly": "花括号 {}",
+      "square": "方括号 []",
+      "creativeNestLevels": "嵌套层数",
+      "postCountFilterMode": "作品数过滤",
+      "none": "不过滤",
+      "gt": "大于阈值",
+      "lt": "小于阈值",
+      "postCountThreshold": "作品数阈值",
+      "separator": "分隔符",
+      "text": "字符串"
+    },
+    "outputs": {
+      "text": "字符串"
+    },
+    "description": "基于本地数据生成画师串，支持标准、权重、括号三种模式。仅使用主名称，分隔符统一为逗号。"
+  }
+}
